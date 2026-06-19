@@ -10,72 +10,39 @@ This project should be built like a real engineering project, not like two peopl
 
 # 1. Team Roles
 
-Assume two people:
+We are following a **Full-Stack Pair Programming / Co-Ownership** model.
 
-- Person A
-- Person B
-
-You can rename these later.
+There is no strict "Frontend Lead" or "Backend Lead". Both teammates (Person A and Person B) are responsible for working across the entire stack.
 
 ---
 
-## 1.1 Person A: AI / Backend / Agent Lead
+## 1.1 Full-Stack Responsibilities
 
-Primary responsibilities:
+Both teammates will write code for:
 
-- FastAPI backend
-- Repository ingestion pipeline
-- File scanner
-- Code parser
-- Chunking
-- Embeddings
-- Qdrant integration
-- RAG pipeline
-- LangGraph agents
-- Tool registry
-- Evaluation logic
-
-Person A owns the intelligence layer.
+- Next.js frontend and UI components
+- FastAPI backend and API routes
+- Repository ingestion and code parsing
+- LangGraph agent workflows and RAG
+- Database schema and Alembic migrations
+- Evaluation logic and observability
 
 ---
 
-## 1.2 Person B: Frontend / Platform / Integration Lead
+## 1.2 Shared Project Ownership
 
-Primary responsibilities:
+Both must work together on:
 
-- Next.js frontend
-- UI pages
-- Dashboard
-- File explorer
-- Chat UI
-- Architecture UI
-- Agent trace UI
-- Evaluation UI
-- API integration
-- Docker Compose support
-- Deployment/demo polish
-
-Person B owns the product experience layer.
-
----
-
-## 1.3 Shared Responsibilities
-
-Both must work on:
-
-- System design
-- Database schema
+- System design and architecture
 - API contracts
 - Security rules
 - Testing
-- Documentation
-- README
-- Demo video
-- Final presentation
+- Documentation and README
+- Demo video and final presentation
 
 Important:
 
-> Do not let one person understand only frontend and the other only AI. Both should understand the complete architecture.
+> Both teammates must understand the complete architecture. Every feature should be built full-stack, meaning if you build an agent on the backend, you also build the UI for it on the frontend.
 
 ---
 

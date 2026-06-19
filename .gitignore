@@ -23,3 +23,4 @@ redis_data/
 *.log
 *.pyc
 .DS_Store
+skills_resources/
