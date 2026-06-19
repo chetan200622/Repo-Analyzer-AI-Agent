@@ -1,22 +1,15 @@
-.PHONY: setup up down build logs backend-dev frontend-dev
+.PHONY: setup backend-dev frontend-dev worker-dev
 
 setup:
 	cp .env.example .env
-
-up:
-	docker compose up -d
-
-down:
-	docker compose down
-
-build:
-	docker compose up -d --build
-
-logs:
-	docker compose logs -f
+	cd backend && python -m venv venv && . venv/bin/activate && pip install -r requirements.txt
+	cd frontend && npm install
 
 backend-dev:
-	cd backend && uvicorn app.main:app --reload --port 8000
+	cd backend && . venv/bin/activate && uvicorn app.main:app --reload --port 8000
+
+worker-dev:
+	cd backend && . venv/bin/activate && rq worker
 
 frontend-dev:
 	cd frontend && npm run dev
