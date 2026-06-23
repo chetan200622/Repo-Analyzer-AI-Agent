@@ -123,6 +123,10 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
                 # Try reading the file to get line count
                 try:
                     file_size = os.path.getsize(file_path)
+                    if file_size > 1024 * 1024:  # Skip files > 1MB
+                        files_ignored += 1
+                        continue
+                        
                     total_bytes += file_size
                     
                     with open(file_path, "r", encoding="utf-8") as f:
@@ -166,13 +170,30 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
         
         all_points = []
         
+        # Mapping from our DB language string to tree-sitter language name
+        TS_LANG_MAP = {
+            "JavaScript": "javascript",
+            "TypeScript": "typescript",
+            "TypeScript React": "tsx",
+            "JavaScript React": "javascript",
+            "Go": "go",
+            "Rust": "rust",
+            "Java": "java",
+            "C++": "cpp"
+        }
+        
         for file_record in file_records:
+            full_path = os.path.join(target_dir, file_record.path)
+            chunks = []
+            
             if file_record.language == "Python":
-                full_path = os.path.join(target_dir, file_record.path)
                 chunks = parser_service.parse_python_file(full_path)
-                
-                if not chunks:
-                    continue
+            elif file_record.language in TS_LANG_MAP:
+                ts_lang = TS_LANG_MAP[file_record.language]
+                chunks = parser_service.parse_generic_file(full_path, ts_lang)
+            
+            if not chunks:
+                continue
                     
                 # Format text to include rich context for embedding
                 texts_to_embed = [

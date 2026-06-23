@@ -30,8 +30,12 @@ def _extract_repo_name(url: str) -> str:
 def analyze_repository(request: AnalyzeRequest, db: Session = Depends(get_db)):
     url_str = str(request.github_url).rstrip("/")
     
-    # Optional: Basic validation (Does the repo exist? Public?)
-    # For now we assume the URL is valid, but we could add an httpx call here.
+    # Strict validation: Only accept github.com repositories
+    if not re.match(r"^https?://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", url_str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Invalid repository URL. Only public github.com repositories are supported."
+        )
     
     # Idempotency check: Have we already analyzed this exact URL?
     existing_repo = db.query(Repository).filter(Repository.github_url == url_str).first()

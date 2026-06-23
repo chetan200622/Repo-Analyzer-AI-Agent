@@ -68,6 +68,8 @@ export const AnalyzeForm = () => {
               className="pl-16 pr-40 h-20 w-full rounded-[2.5rem] bg-white/5 border-none focus-visible:ring-1 focus-visible:ring-white/30 text-white text-xl shadow-inner placeholder:text-zinc-500 transition-all duration-300"
               required
               type="url"
+              pattern="https://github\.com/.*"
+              title="Must be a valid GitHub repository URL (e.g., https://github.com/owner/repo)"
             />
             <div className="absolute right-3">
               <Button 

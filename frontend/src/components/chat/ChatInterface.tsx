@@ -56,13 +56,13 @@ export function ChatInterface({ repoId }: { repoId: string }) {
     setIsGenerating(true);
 
     const newUserMsg: Message = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       role: 'user',
       content: userMessage,
     };
 
     const newAssistantMsg: Message = {
-      id: (Date.now() + 1).toString(),
+      id: crypto.randomUUID(),
       role: 'assistant',
       content: '',
       isStreaming: true,
