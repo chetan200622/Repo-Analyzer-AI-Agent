@@ -193,7 +193,7 @@ export function ChatInterface({ repoId }: { repoId: string }) {
                       <ReactMarkdown
                         components={{
                           code(props) {
-                            const {children, className, node, ...rest} = props
+                            const {children, className, node, ref, ...rest} = props as any;
                             const match = /language-(\w+)/.exec(className || '')
                             return match ? (
                               <SyntaxHighlighter

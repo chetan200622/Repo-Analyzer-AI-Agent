@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
 
-const container = {
+const container: any = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -20,8 +20,8 @@ const container = {
   }
 };
 
-const item = {
-  hidden: { opacity: 0, y: 30, filter: 'blur(10px)' },
+const item: any = {
+  hidden: { opacity: 0, y: 20, filter: 'blur(10px)' },
   show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
 
