@@ -7,8 +7,8 @@ import { AnimatedContainer, AnimatedItem } from '../../AnimatedComponents';
 
 export const dynamic = 'force-dynamic';
 
-export default async function RepositoryPage({ params }: { params: { id: string } }) {
-  const repoId = params.id;
+export default async function RepositoryPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: repoId } = await params;
 
   const repo = await api.getRepository(repoId).catch(() => null);
   const files = await api.getRepositoryFiles(repoId).catch(() => []);
