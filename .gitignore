@@ -1,26 +1,24 @@
-.env
-.env.*
-!.env.example
-
-node_modules/
+# Python
 venv/
-.venv/
 __pycache__/
-.pytest_cache/
+*.pyc
+.env
+
+# Node
+node_modules/
 .next/
 dist/
 build/
-coverage/
 
-data/
-tmp/
-repos/
-storage/
-qdrant_storage/
-postgres_data/
-redis_data/
-
-*.log
-*.pyc
+# OS
 .DS_Store
-skills_resources/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Local files
+*.sqlite3
