@@ -17,3 +17,13 @@ httpx==0.28.1
 
 # Repository Parsing
 GitPython==3.1.43
+
+# Vector DB & Embeddings
+qdrant-client
+sentence-transformers==2.7.0
+numpy<2.0.0
+transformers<4.40.0
+
+# AI & RAG
+langchain-core
+langchain-ollama

@@ -52,4 +52,9 @@ export const api = {
   getRepositoryFiles: (id: string) => fetchApi<FileNode[]>(`/api/repositories/${id}/files`),
   
   getJobForRepo: (repoId: string) => fetchApi<AnalysisJob>(`/api/jobs/repo/${repoId}`),
+  
+  chatWithRepo: (repoId: string, message: string) => fetchApi<any>(`/api/chat`, {
+    method: 'POST',
+    body: JSON.stringify({ repo_id: repoId, message }),
+  }),
 };

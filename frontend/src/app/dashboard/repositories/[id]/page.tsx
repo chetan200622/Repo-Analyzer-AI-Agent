@@ -3,12 +3,23 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { usePathname } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { FileCode, Activity, Languages, Database } from 'lucide-react';
+import { FileCode, ArrowLeft, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
+import { SpotlightCard } from '@/components/ui/spotlight-card';
+import { ChatInterface } from '@/components/chat/ChatInterface';
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+};
 
 export default function RepositoryPage() {
   const pathname = usePathname();
@@ -26,121 +37,152 @@ export default function RepositoryPage() {
 
   if (repoLoading) {
     return (
-      <div className="flex-1 p-8 space-y-6">
-        <Skeleton className="h-10 w-1/3" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
+      <div className="flex-1 p-4 md:p-12 space-y-12 max-w-5xl mx-auto w-full">
+        <div className="h-16 w-3/4 bg-white/5 rounded-2xl animate-pulse" />
+        <div className="flex gap-12">
+          <div className="h-20 w-32 bg-white/5 rounded-2xl animate-pulse" />
+          <div className="h-20 w-32 bg-white/5 rounded-2xl animate-pulse" />
+          <div className="h-20 w-32 bg-white/5 rounded-2xl animate-pulse" />
         </div>
       </div>
     );
   }
 
   if (!repo) {
-    return <div className="p-8">Repository not found</div>;
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="text-center">
+          <h2 className="text-3xl font-heading text-zinc-200">Document not found</h2>
+          <p className="text-zinc-500 mt-2 font-light">The repository you are looking for does not exist on this canvas.</p>
+          <Link href="/dashboard" className="mt-8 inline-flex items-center px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+            Return to Workspace
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
+    <motion.div 
+      className="flex-1 space-y-16 p-4 md:p-12 pt-8 max-w-[1200px] mx-auto w-full"
+      variants={container}
+      initial="hidden"
+      animate="show"
+    >
+      {/* Document Header */}
+      <motion.div variants={item} className="space-y-6">
+        <Link href="/dashboard" className="inline-flex items-center text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Workspace
+        </Link>
+        
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">{repo.name}</h2>
-          <div className="flex items-center space-x-2 mt-2">
-            <a href={repo.github_url} target="_blank" rel="noreferrer" className="text-sm text-blue-400 hover:underline">
-              {repo.github_url}
+          <h1 className="text-5xl md:text-6xl font-heading text-white tracking-tight leading-tight flex items-center flex-wrap gap-4 drop-shadow-2xl">
+            {repo.name}
+            {repo.status === 'READY' && (
+              <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-sans font-semibold tracking-widest uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(52,211,153,0.1)]">
+                Indexed
+              </span>
+            )}
+          </h1>
+          <div className="mt-6 flex flex-wrap gap-x-8 gap-y-4">
+            <a href={repo.github_url} target="_blank" rel="noreferrer" className="flex items-center text-zinc-400 hover:text-white transition-colors text-lg font-light group">
+              <ExternalLink className="mr-2 h-5 w-5 group-hover:text-white transition-colors" strokeWidth={1.5} />
+              View Source
             </a>
-            <Badge variant={repo.status === 'READY' ? 'default' : 'secondary'}>{repo.status}</Badge>
+            <span className="text-zinc-500 font-light text-lg">
+              Added {new Date(repo.created_at).toLocaleDateString()}
+            </span>
           </div>
         </div>
-        <Link href="/dashboard">
-          <Button variant="outline">Back to Dashboard</Button>
-        </Link>
-      </div>
+      </motion.div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Primary Language</CardTitle>
-            <Languages className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{repo.primary_language || 'N/A'}</div>
-          </CardContent>
-        </Card>
+      {/* Elegant Inline Metrics */}
+      <motion.div variants={item} className="flex flex-wrap gap-12 py-8 border-y border-white/5">
+        <div>
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-1">Primary Language</p>
+          <p className="text-2xl font-sans text-white drop-shadow-md">{repo.primary_language || 'N/A'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-1">Files Scanned</p>
+          <p className="text-2xl font-sans text-white drop-shadow-md">{repo.total_files.toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-1">Lines of Code</p>
+          <p className="text-2xl font-sans text-white drop-shadow-md">{repo.total_lines.toLocaleString()}</p>
+        </div>
+      </motion.div>
+
+      {/* Split View: Chat & File Explorer */}
+      <motion.div variants={item} className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Files Scanned</CardTitle>
-            <FileCode className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{repo.total_files.toLocaleString()}</div>
-          </CardContent>
-        </Card>
+        {/* Left: Chat Interface */}
+        <div className="space-y-6">
+          <h3 className="text-2xl font-heading text-white">Chat with Codebase</h3>
+          <ChatInterface repoId={repoId} />
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Lines of Code</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{repo.total_lines.toLocaleString()}</div>
-          </CardContent>
-        </Card>
+        {/* Right: The Blueprint Document (File Explorer) */}
+        <div className="space-y-6">
+          <h3 className="text-2xl font-heading text-white">Source Files</h3>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Database Status</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-500">Indexed</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>File Explorer</CardTitle>
-          <CardDescription>All recognized source files in this repository.</CardDescription>
-        </CardHeader>
-        <CardContent>
+        
+        <SpotlightCard className="p-2 bg-black/40 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
           {filesLoading ? (
-            <Skeleton className="h-64 w-full" />
+            <div className="p-12 space-y-6">
+              <div className="h-8 w-full bg-white/5 rounded-xl animate-pulse" />
+              <div className="h-8 w-full bg-white/5 rounded-xl animate-pulse" />
+              <div className="h-8 w-full bg-white/5 rounded-xl animate-pulse" />
+            </div>
           ) : files && files.length > 0 ? (
-            <div className="rounded-md border border-zinc-800">
-              <div className="max-h-[500px] overflow-auto">
-                <table className="w-full text-sm text-left text-zinc-400">
-                  <thead className="text-xs text-zinc-300 uppercase bg-zinc-900/50 sticky top-0">
-                    <tr>
-                      <th className="px-6 py-3 font-medium">File Path</th>
-                      <th className="px-6 py-3 font-medium">Language</th>
-                      <th className="px-6 py-3 font-medium text-right">Lines</th>
-                      <th className="px-6 py-3 font-medium text-right">Size (KB)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {files.map((file) => (
-                      <tr key={file.id} className="border-b border-zinc-800 hover:bg-zinc-800/30">
-                        <td className="px-6 py-3 font-mono text-xs">{file.path}</td>
-                        <td className="px-6 py-3">
-                          <Badge variant="outline" className="text-xs font-normal bg-zinc-900">{file.language}</Badge>
-                        </td>
-                        <td className="px-6 py-3 text-right">{file.line_count.toLocaleString()}</td>
-                        <td className="px-6 py-3 text-right">{(file.size_bytes / 1024).toFixed(1)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="max-h-[800px] overflow-auto px-4 md:px-8 py-4 custom-scrollbar">
+              <table className="w-full text-left border-collapse">
+                <thead className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest sticky top-0 bg-black/60 backdrop-blur-xl z-10">
+                  <tr>
+                    <th className="px-4 py-6 border-b border-white/5 font-medium">Path</th>
+                    <th className="px-4 py-6 border-b border-white/5 font-medium w-32">Language</th>
+                    <th className="px-4 py-6 border-b border-white/5 font-medium text-right w-24">Lines</th>
+                    <th className="px-4 py-6 border-b border-white/5 font-medium text-right w-32">Size (KB)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {files.map((file) => (
+                    <motion.tr 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      key={file.id} 
+                      className="hover:bg-white/5 transition-colors group"
+                    >
+                      <td className="px-4 py-4 text-sm font-mono text-zinc-400 group-hover:text-zinc-200 transition-colors truncate max-w-xs md:max-w-md">
+                        {file.path}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-white/5 text-zinc-300 border border-white/10 shadow-sm">
+                          {file.language}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-right font-mono text-zinc-500">
+                        {file.line_count.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-right font-mono text-zinc-600">
+                        {(file.size_bytes / 1024).toFixed(1)}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <div className="text-center p-8 text-zinc-500 border border-dashed border-zinc-800 rounded-lg">
-              No files found or repository is still processing.
+            <div className="flex flex-col items-center justify-center p-20 text-center">
+              <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mb-6 border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+                <FileCode className="h-8 w-8 text-zinc-600" strokeWidth={1} />
+              </div>
+              <h4 className="text-lg font-heading text-zinc-200">No files indexed</h4>
+              <p className="text-sm text-zinc-500 mt-2 font-light">Files will appear here once analysis completes.</p>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+            )}
+          </SpotlightCard>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

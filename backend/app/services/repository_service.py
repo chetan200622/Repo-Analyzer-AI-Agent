@@ -156,12 +156,72 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
         if file_records:
             session.bulk_save_objects(file_records)
             
+        _update_job(session, job_id, "Parsing and chunking codebase...", 85)
+        
+        # Import AI services here to avoid circular dependencies or slow startup
+        from app.services.parser_service import parser_service
+        from app.services.embedding_service import embedding_service
+        from app.infrastructure.qdrant import qdrant_service
+        from qdrant_client.http.models import PointStruct
+        
+        all_points = []
+        
+        for file_record in file_records:
+            if file_record.language == "Python":
+                full_path = os.path.join(target_dir, file_record.path)
+                chunks = parser_service.parse_python_file(full_path)
+                
+                if not chunks:
+                    continue
+                    
+                # Format text to include rich context for embedding
+                texts_to_embed = [
+                    f"File: {file_record.path}\nType: {c.chunk_type}\nName: {c.name}\n\n{c.code}"
+                    for c in chunks
+                ]
+                
+                # Generate embeddings (this will auto-download the model on first run)
+                embeddings = embedding_service.generate_embeddings(texts_to_embed)
+                
+                # Create Qdrant points
+                for i, chunk in enumerate(chunks):
+                    # Generate a unique deterministic UUID for the chunk
+                    point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{repo_id}:{file_record.path}:{chunk.start_line}:{chunk.name}"))
+                    
+                    payload = {
+                        "repo_id": repo_id,
+                        "file_path": file_record.path,
+                        "language": "Python",
+                        "chunk_type": chunk.chunk_type,
+                        "symbol_name": chunk.name,
+                        "start_line": chunk.start_line,
+                        "end_line": chunk.end_line,
+                        "code": chunk.code
+                    }
+                    
+                    all_points.append(
+                        PointStruct(
+                            id=point_id,
+                            vector=embeddings[i],
+                            payload=payload
+                        )
+                    )
+                    
+        if all_points:
+            _update_job(session, job_id, "Storing vectors in Qdrant...", 95)
+            # Batch upsert to Qdrant
+            batch_size = 100
+            for i in range(0, len(all_points), batch_size):
+                batch = all_points[i:i + batch_size]
+                qdrant_service.upsert_chunks("code_chunks", batch)
+            
         # Update repository stats
         repo = session.query(Repository).filter(Repository.id == repo_id).first()
         if repo:
             repo.total_files = files_scanned
             repo.total_lines = total_lines
             repo.language_stats = language_stats
+            repo.total_chunks = len(all_points)
             
             # Determine primary language
             if language_stats:
