@@ -10,9 +10,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
 class ChatRequest(BaseModel):
     repo_id: str
     message: str
+    history: List[ChatMessage] = []
 
 class ChatSource(BaseModel):
     file_path: str
@@ -36,8 +41,9 @@ async def chat_with_repo(request: ChatRequest):
         raise HTTPException(status_code=400, detail="Message cannot be empty")
         
     try:
+        history_dicts = [h.model_dump() for h in request.history]
         return StreamingResponse(
-            rag_service.stream_question(request.repo_id, request.message),
+            rag_service.stream_question(request.repo_id, request.message, history_dicts),
             media_type="application/x-ndjson"
         )
     except Exception as e:

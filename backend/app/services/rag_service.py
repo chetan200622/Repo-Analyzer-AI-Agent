@@ -12,13 +12,17 @@ OLLAMA_MODEL = "qwen2.5-coder"
 OLLAMA_BASE_URL = "http://localhost:11434"
 
 PROMPT_TEMPLATE = """You are an elite Principal Software Engineer and AI Architecture Expert analyzing a codebase.
-You are tasked with answering a developer's question using ONLY the provided code context.
+You are tasked with answering a developer's question using ONLY the provided code context and previous conversation history.
 
 CRITICAL INSTRUCTIONS:
 1. FORMATTING: You MUST format your response using beautifully structured Markdown. Use code blocks (e.g., ```python) for code snippets, bullet points for lists, and bold text for emphasis.
-2. ACCURACY: If the answer cannot be determined from the provided context, you MUST say "I don't have enough context in the repository to answer that." Do NOT guess or hallucinate.
-3. CITATIONS: When mentioning specific files or lines, refer to them clearly.
-4. TONE: Be direct, technical, and highly professional. Do not write fluff.
+2. ACCURACY: If the user asks a technical question and the answer cannot be determined from the provided context, you MUST say "I don't have enough context in the repository to answer that." Do NOT guess or hallucinate.
+3. CONVERSATION: If the user is just saying hello, greeting you, or asking a generic non-technical question, politely greet them back and ask what they would like to know about the codebase.
+4. CITATIONS: When mentioning specific files or lines, refer to them clearly.
+5. TONE: Be direct, technical, and highly professional. Do not write fluff.
+
+Conversation History:
+{history}
 
 Code Context:
 {context}
@@ -41,10 +45,10 @@ class RAGService:
             
         self.prompt = PromptTemplate(
             template=PROMPT_TEMPLATE,
-            input_variables=["context", "question"]
+            input_variables=["history", "context", "question"]
         )
 
-    def ask_question(self, repo_id: str, query: str) -> Dict[str, Any]:
+    def ask_question(self, repo_id: str, query: str, history: List[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Retrieves context, formats prompt, and queries Ollama.
         """
@@ -76,9 +80,16 @@ class RAGService:
             
         context_str = "\n".join(context_parts)
         
+        # Format history
+        history_str = ""
+        if history:
+            history_str = "\n".join([f"{msg.get('role', 'user').capitalize()}: {msg.get('content', '')}" for msg in history])
+        else:
+            history_str = "No previous conversation history."
+        
         # 3. Generate Answer
         try:
-            formatted_prompt = self.prompt.format(context=context_str, question=query)
+            formatted_prompt = self.prompt.format(history=history_str, context=context_str, question=query)
             # Invoke the LLM
             # Note: For production, we would use streaming. For MVP, we use standard invoke.
             response = self.llm.invoke(formatted_prompt)
@@ -94,7 +105,7 @@ class RAGService:
                 "sources": chunks
             }
 
-    def stream_question(self, repo_id: str, query: str):
+    def stream_question(self, repo_id: str, query: str, history: List[Dict[str, str]] = None):
         """
         Retrieves context, formats prompt, and streams response from Ollama.
         Yields JSON strings containing either tokens or the final source list.
@@ -127,9 +138,16 @@ class RAGService:
             
         context_str = "\n".join(context_parts)
         
+        # Format history
+        history_str = ""
+        if history:
+            history_str = "\n".join([f"{msg.get('role', 'user').capitalize()}: {msg.get('content', '')}" for msg in history])
+        else:
+            history_str = "No previous conversation history."
+        
         # 3. Generate Answer
         try:
-            formatted_prompt = self.prompt.format(context=context_str, question=query)
+            formatted_prompt = self.prompt.format(history=history_str, context=context_str, question=query)
             
             # Stream the LLM response
             for chunk in self.llm.stream(formatted_prompt):
