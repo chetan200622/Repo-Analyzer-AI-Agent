@@ -57,28 +57,23 @@ class RAGService:
         # 1. Retrieve code chunks
         chunks = retrieval_service.search_code_chunks(repo_id, query, limit=5)
         
-        if not chunks:
-            return {
-                "answer": "I couldn't find any relevant code in this repository for your question.",
-                "sources": []
-            }
-            
         # 2. Format context
         context_parts = []
-        for i, chunk in enumerate(chunks):
-            filepath = chunk.get("file_path", "unknown")
-            start = chunk.get("start_line", "?")
-            end = chunk.get("end_line", "?")
-            symbol = chunk.get("symbol_name", "")
-            code = chunk.get("code", "")
+        if chunks:
+            for i, chunk in enumerate(chunks):
+                filepath = chunk.get("file_path", "unknown")
+                start = chunk.get("start_line", "?")
+                end = chunk.get("end_line", "?")
+                symbol = chunk.get("symbol_name", "")
+                code = chunk.get("code", "")
+                
+                header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
+                if symbol:
+                    header += f" [{symbol}]"
+                
+                context_parts.append(f"{header}\n{code}\n")
             
-            header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
-            if symbol:
-                header += f" [{symbol}]"
-            
-            context_parts.append(f"{header}\n{code}\n")
-            
-        context_str = "\n".join(context_parts)
+        context_str = "\n".join(context_parts) if context_parts else "No relevant code context found for this specific query."
         
         # Format history
         history_str = ""
@@ -115,28 +110,24 @@ class RAGService:
         
         # 1. Retrieve code chunks
         chunks = retrieval_service.search_code_chunks(repo_id, query, limit=5)
-        
-        if not chunks:
-            yield json.dumps({"token": "I couldn't find any relevant code in this repository for your question.\n"}) + "\n"
-            yield json.dumps({"sources": []}) + "\n"
-            return
             
         # 2. Format context
         context_parts = []
-        for i, chunk in enumerate(chunks):
-            filepath = chunk.get("file_path", "unknown")
-            start = chunk.get("start_line", "?")
-            end = chunk.get("end_line", "?")
-            symbol = chunk.get("symbol_name", "")
-            code = chunk.get("code", "")
+        if chunks:
+            for i, chunk in enumerate(chunks):
+                filepath = chunk.get("file_path", "unknown")
+                start = chunk.get("start_line", "?")
+                end = chunk.get("end_line", "?")
+                symbol = chunk.get("symbol_name", "")
+                code = chunk.get("code", "")
+                
+                header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
+                if symbol:
+                    header += f" [{symbol}]"
+                
+                context_parts.append(f"{header}\n{code}\n")
             
-            header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
-            if symbol:
-                header += f" [{symbol}]"
-            
-            context_parts.append(f"{header}\n{code}\n")
-            
-        context_str = "\n".join(context_parts)
+        context_str = "\n".join(context_parts) if context_parts else "No relevant code context found for this specific query."
         
         # Format history
         history_str = ""
