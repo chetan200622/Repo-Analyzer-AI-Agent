@@ -1,185 +1,37 @@
-'use client';
-
-import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '@/services/api';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Server, Database, Layers, FolderGit2, ArrowRight, GitBranch, Activity } from 'lucide-react';
-import { JobTracker } from '@/components/job-tracker';
-import { toast } from 'sonner';
+import { Server, Database, Layers, FolderGit2, ArrowRight, Activity } from 'lucide-react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
+import { AnalyzeForm } from './AnalyzeForm';
+import { StatusRing } from './StatusRing';
+import { AnimatedContainer, AnimatedItem, AnimatedHeader } from './AnimatedComponents';
 
-const container: any = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 }
-  }
-};
+export const dynamic = 'force-dynamic';
 
-const item: any = {
-  hidden: { opacity: 0, y: 20, filter: 'blur(10px)' },
-  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { type: "spring", stiffness: 300, damping: 24 } }
-};
-
-// Animated SVG Ring for Telemetry (Dark Mode High Contrast)
-const StatusRing = ({ status }: { status: 'healthy' | 'degraded' | 'offline' | 'unknown' }) => {
-  const isHealthy = status === 'healthy';
-  return (
-    <div className="relative w-12 h-12 flex items-center justify-center">
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
-        <circle 
-          cx="50" cy="50" r="46" 
-          fill="none" 
-          stroke={isHealthy ? 'rgba(52, 211, 153, 0.15)' : 'rgba(251, 113, 133, 0.15)'} 
-          strokeWidth="4" 
-        />
-        <motion.circle 
-          cx="50" cy="50" r="46" 
-          fill="none" 
-          stroke={isHealthy ? 'rgba(52, 211, 153, 0.8)' : 'rgba(251, 113, 133, 0.8)'} 
-          strokeWidth="4"
-          strokeDasharray="20 10"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-        />
-      </svg>
-      <div className={`w-3 h-3 rounded-full shadow-lg ${isHealthy ? 'bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.8)]' : 'bg-rose-400 shadow-[0_0_15px_rgba(251,113,133,0.8)]'}`} />
-    </div>
-  );
-};
-
-export default function DashboardPage() {
-  const [url, setUrl] = useState('');
-  const [activeRepoId, setActiveRepoId] = useState<string | null>(null);
-  const [isInputFocused, setIsInputFocused] = useState(false);
-
-  const { data: health, isLoading } = useQuery({
-    queryKey: ['health'],
-    queryFn: api.checkHealth,
-    refetchInterval: 30000,
-  });
-
-  const { data: reposData, isLoading: reposLoading, refetch: refetchRepos } = useQuery({
-    queryKey: ['repositories'],
-    queryFn: api.getRepositories,
-  });
-
-  const { mutate: analyzeRepo, isPending: isAnalyzing } = useMutation({
-    mutationFn: api.analyzeRepository,
-    onSuccess: (data) => {
-      setActiveRepoId(data.id);
-      toast.success('Repository analysis started');
-      setUrl('');
-      refetchRepos();
-    },
-    onError: (err: any) => {
-      toast.error(err.message || 'Failed to analyze repository');
-    }
-  });
-
-  const handleAnalyze = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!url) return;
-    analyzeRepo(url);
-  };
+export default async function DashboardPage() {
+  // Fetch data natively on the server before rendering
+  const health = await api.checkHealth().catch(() => null);
+  const reposData = await api.getRepositories().catch(() => ({ repositories: [] }));
 
   return (
     <div className="relative">
-      {/* Dynamic Background Dimming based on Focus */}
-      <AnimatePresence>
-        {isInputFocused && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-md z-0 pointer-events-none transition-all duration-700" 
-          />
-        )}
-      </AnimatePresence>
-
-      <motion.div 
-        className="relative z-10 flex-1 space-y-16 p-4 md:p-12 pt-12 max-w-[1200px] mx-auto w-full"
-        variants={container}
-        initial="hidden"
-        animate="show"
-      >
+      <AnimatedContainer className="relative z-10 flex-1 space-y-16 p-4 md:p-12 pt-12 max-w-[1200px] mx-auto w-full">
         {/* Spatial Header */}
-        <motion.div variants={item} className="space-y-6 text-center max-w-3xl mx-auto">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 1, ease: "easeOut" }}
-          >
-            <h2 className="text-6xl md:text-7xl font-heading text-white tracking-tight leading-tight drop-shadow-2xl">
-              Your Workspace
-            </h2>
-          </motion.div>
+        <AnimatedItem className="space-y-6 text-center max-w-3xl mx-auto">
+          <AnimatedHeader />
           <p className="text-xl text-zinc-400 font-light max-w-xl mx-auto">
             Analyze, understand, and interact with your GitHub repositories using spatial intelligence.
           </p>
-        </motion.div>
+        </AnimatedItem>
 
         {/* The Nexus (Analyze Input) */}
-        <motion.div variants={item} className="max-w-3xl mx-auto w-full">
-          <SpotlightCard magnetic className="p-2 md:p-3 !rounded-[3rem] bg-black/40 border-white/10 shadow-[0_0_50px_rgba(255,255,255,0.03)]">
-            <form onSubmit={handleAnalyze} className="relative flex items-center w-full">
-              <motion.div 
-                className="absolute left-6 text-zinc-300 z-10"
-                animate={{ scale: isInputFocused ? 1.1 : 1, rotate: isInputFocused ? 10 : 0 }}
-              >
-                <GitBranch className="h-6 w-6 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]" strokeWidth={1.5} />
-              </motion.div>
-              <Input 
-                placeholder="Paste a public GitHub repository URL..." 
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onFocus={() => setIsInputFocused(true)}
-                onBlur={() => setIsInputFocused(false)}
-                className="pl-16 pr-40 h-20 w-full rounded-[2.5rem] bg-white/5 border-none focus-visible:ring-1 focus-visible:ring-white/30 text-white text-xl shadow-inner placeholder:text-zinc-500 transition-all duration-300"
-                required
-                type="url"
-              />
-              <div className="absolute right-3">
-                <Button 
-                  type="submit" 
-                  disabled={isAnalyzing}
-                  className="h-14 rounded-full px-8 bg-white hover:bg-zinc-200 text-black font-medium shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all duration-300 group border border-white/20"
-                >
-                  <span className="text-lg">{isAnalyzing ? 'Analyzing...' : 'Analyze'}</span>
-                  {!isAnalyzing && (
-                    <motion.div
-                      animate={{ x: [0, 5, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                    >
-                      <ArrowRight className="ml-3 h-5 w-5" strokeWidth={2} />
-                    </motion.div>
-                  )}
-                </Button>
-              </div>
-            </form>
-            
-            <AnimatePresence>
-              {activeRepoId && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                  animate={{ opacity: 1, height: 'auto', marginTop: 32 }}
-                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                  className="px-6 pb-6 overflow-hidden"
-                >
-                  <JobTracker repoId={activeRepoId} onComplete={() => refetchRepos()} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </SpotlightCard>
-        </motion.div>
+        <AnimatedItem className="max-w-3xl mx-auto w-full">
+          <AnalyzeForm />
+        </AnimatedItem>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
           {/* Telemetry Bento Box */}
-          <motion.div variants={item} className="md:col-span-4 h-full">
+          <AnimatedItem className="md:col-span-4 h-full">
             <SpotlightCard className="h-full p-8 flex flex-col justify-between group">
               <h3 className="text-lg font-semibold text-white mb-8">System Telemetry</h3>
               <div className="space-y-8">
@@ -190,7 +42,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-zinc-200">API Gateway</p>
-                      <p className="text-xs text-zinc-500">{isLoading ? 'Pinging...' : 'Healthy'}</p>
+                      <p className="text-xs text-zinc-500">{health ? 'Healthy' : 'Offline'}</p>
                     </div>
                   </div>
                   <StatusRing status={health?.status === 'healthy' ? 'healthy' : 'offline'} />
@@ -203,7 +55,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-zinc-200">PostgreSQL</p>
-                      <p className="text-xs text-zinc-500">{isLoading ? 'Connecting...' : 'Active'}</p>
+                      <p className="text-xs text-zinc-500">{health ? 'Active' : 'Offline'}</p>
                     </div>
                   </div>
                   <StatusRing status={health?.database === 'healthy' ? 'healthy' : 'offline'} />
@@ -216,28 +68,23 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-zinc-200">Redis Cache</p>
-                      <p className="text-xs text-zinc-500">{isLoading ? 'Connecting...' : 'Active'}</p>
+                      <p className="text-xs text-zinc-500">{health ? 'Active' : 'Offline'}</p>
                     </div>
                   </div>
                   <StatusRing status={health?.redis === 'healthy' ? 'healthy' : 'offline'} />
                 </div>
               </div>
             </SpotlightCard>
-          </motion.div>
+          </AnimatedItem>
 
           {/* Recent Documents Bento Box */}
-          <motion.div variants={item} className="md:col-span-8 h-full">
+          <AnimatedItem className="md:col-span-8 h-full">
             <SpotlightCard className="h-full">
               <div className="p-8 border-b border-white/5">
                 <h3 className="text-lg font-semibold text-white">Recent Documents</h3>
               </div>
               <div className="p-4">
-                {reposLoading ? (
-                  <div className="p-4 space-y-4">
-                    <div className="h-20 bg-white/5 rounded-2xl animate-pulse" />
-                    <div className="h-20 bg-white/5 rounded-2xl animate-pulse" />
-                  </div>
-                ) : reposData?.repositories?.length > 0 ? (
+                {reposData?.repositories?.length > 0 ? (
                   <div className="space-y-2">
                     {reposData.repositories.slice(0, 5).map((repo: any) => (
                       <Link href={`/dashboard/repositories/${repo.id}`} key={repo.id} className="block group/item">
@@ -288,9 +135,9 @@ export default function DashboardPage() {
                 )}
               </div>
             </SpotlightCard>
-          </motion.div>
+          </AnimatedItem>
         </div>
-      </motion.div>
+      </AnimatedContainer>
     </div>
   );
 }
