@@ -183,16 +183,16 @@ export function ChatInterface({ repoId }: { repoId: string }) {
                 </div>
               )}
               
-              <div className={`max-w-[85%] space-y-3 ${msg.role === 'user' ? 'order-1' : 'order-2'}`}>
+              <div className={`max-w-[85%] min-w-0 space-y-3 ${msg.role === 'user' ? 'order-1' : 'order-2'}`}>
                 <div 
-                  className={`p-4 rounded-2xl ${
+                  className={`p-4 rounded-2xl overflow-hidden ${
                     msg.role === 'user' 
                       ? 'bg-white/10 text-white border border-white/5' 
                       : 'bg-white/5 text-zinc-300 border border-white/5 shadow-inner'
                   }`}
                 >
                   {msg.role === 'user' ? (
-                    <p className="whitespace-pre-wrap font-light text-sm leading-relaxed">{msg.content}</p>
+                    <p className="whitespace-pre-wrap font-light text-sm leading-relaxed break-words">{msg.content}</p>
                   ) : (
                     <div className="markdown-prose text-sm font-light leading-relaxed">
                       <ReactMarkdown
@@ -212,6 +212,8 @@ export function ChatInterface({ repoId }: { repoId: string }) {
                                   borderRadius: '0.5rem',
                                   border: '1px solid rgba(255,255,255,0.1)',
                                   background: 'rgba(0,0,0,0.5)',
+                                  maxWidth: '100%',
+                                  overflowX: 'auto',
                                 }}
                               />
                             ) : (
