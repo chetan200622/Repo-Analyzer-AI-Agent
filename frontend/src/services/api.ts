@@ -38,4 +38,18 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 
 export const api = {
   checkHealth: () => fetchApi<HealthResponse>('/health'),
+  
+  analyzeRepository: (githubUrl: string) => 
+    fetchApi<Repository>('/api/repositories/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ github_url: githubUrl }),
+    }),
+    
+  getRepositories: () => fetchApi<any>('/api/repositories'),
+  
+  getRepository: (id: string) => fetchApi<Repository>(`/api/repositories/${id}`),
+  
+  getRepositoryFiles: (id: string) => fetchApi<FileNode[]>(`/api/repositories/${id}/files`),
+  
+  getJobForRepo: (repoId: string) => fetchApi<AnalysisJob>(`/api/jobs/repo/${repoId}`),
 };

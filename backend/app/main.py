@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health
+from app.api.routes import health, repositories, jobs
 from app.core.config import settings
 
 # Configure structured logging
@@ -54,3 +54,5 @@ app.add_middleware(
 
 # Register routers
 app.include_router(health.router)
+app.include_router(repositories.router, prefix="/api")
+app.include_router(jobs.router, prefix="/api")
