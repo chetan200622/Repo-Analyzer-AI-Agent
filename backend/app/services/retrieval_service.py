@@ -27,7 +27,8 @@ class RetrievalService:
                         )
                     ]
                 ),
-                limit=limit
+                limit=limit,
+                score_threshold=0.62
             )
 
             # 3. Format the results
