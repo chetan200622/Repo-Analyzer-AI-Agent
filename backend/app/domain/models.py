@@ -37,6 +37,9 @@ class Repository(Base):
     total_files = Column(Integer, default=0)
     total_lines = Column(Integer, default=0)
     language_stats = Column(JSON, nullable=True)
+    dependencies = Column(JSON, nullable=True)
+    summary = Column(Text, nullable=True)
+    architecture_diagram = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime,

@@ -72,6 +72,44 @@ def _update_job(session, job_id: str, step: str, progress: int, status: str = "I
             job.error_message = error_msg
         session.commit()
 
+import json
+def extract_dependencies(file_path: str, file_name: str) -> Dict[str, str]:
+    deps = {}
+    try:
+        if file_name == "package.json":
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                deps.update(data.get("dependencies", {}))
+                deps.update(data.get("devDependencies", {}))
+        elif file_name == "requirements.txt":
+            with open(file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        parts = line.split("==")
+                        if len(parts) == 2:
+                            deps[parts[0].strip()] = parts[1].strip()
+                        else:
+                            deps[line] = "latest"
+        elif file_name == "pyproject.toml":
+            with open(file_path, "r", encoding="utf-8") as f:
+                in_deps = False
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("[tool.poetry.dependencies]") or line.startswith("[project.dependencies]"):
+                        in_deps = True
+                        continue
+                    elif line.startswith("["):
+                        in_deps = False
+                        
+                    if in_deps and "=" in line and not line.startswith("#"):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            deps[parts[0].strip()] = parts[1].strip().strip('"').strip("'")
+    except Exception as e:
+        logger.warning(f"Failed to parse dependencies from {file_name}: {e}")
+    return deps
+
 def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
     """Background worker function to clone and scan a repository."""
     session = SessionLocal()
@@ -98,6 +136,7 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
         total_lines = 0
         total_bytes = 0
         language_stats: Dict[str, int] = {}
+        dependencies_gathered: Dict[str, str] = {}
         
         file_records: List[File] = []
         
@@ -115,6 +154,11 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
                     secrets_skipped += 1
                     continue
                 
+                # Extract dependencies
+                if file_name in ["package.json", "requirements.txt", "pyproject.toml"]:
+                    deps = extract_dependencies(file_path, file_name)
+                    dependencies_gathered.update(deps)
+
                 language = LANGUAGE_MAP.get(ext)
                 if not language:
                     files_ignored += 1
@@ -243,10 +287,52 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
             repo.total_lines = total_lines
             repo.language_stats = language_stats
             repo.total_chunks = len(all_points)
+            repo.dependencies = dependencies_gathered
             
             # Determine primary language
             if language_stats:
                 repo.primary_language = max(language_stats.items(), key=lambda x: x[1])[0]
+                
+            # --- Generate AI Architecture Summary ---
+            _update_job(session, job_id, "Generating AI Architecture Summary...", 98)
+            try:
+                from app.services.rag_service import rag_service
+                prompt = f"""
+You are an expert software architect. Analyze the following repository metadata and generate a high-level summary and architecture diagram.
+
+Repository Name: {repo.name}
+Primary Language: {repo.primary_language}
+Language Stats: {json.dumps(language_stats, indent=2)}
+Total Files: {files_scanned}
+Dependencies: {json.dumps(dependencies_gathered, indent=2)}
+
+Based on the dependencies and languages, output exactly two sections:
+
+## Architecture Summary
+(Write 2 paragraphs explaining what kind of application this is, what stack it uses, and what its main components are likely to be based on the dependencies).
+
+## Architecture Diagram
+(Provide a Mermaid.js `graph TD` diagram showing the likely high level architecture. Do NOT wrap it in markdown code blocks, just output the raw mermaid code starting with `graph TD`).
+"""
+                ai_response = rag_service.llm.invoke(prompt).content
+                
+                if "## Architecture Diagram" in ai_response:
+                    parts = ai_response.split("## Architecture Diagram")
+                    summary_raw = parts[0].replace("## Architecture Summary", "").strip()
+                    diagram_raw = parts[1].strip()
+                    if diagram_raw.startswith("```mermaid"):
+                        diagram_raw = diagram_raw.replace("```mermaid", "").replace("```", "").strip()
+                    elif diagram_raw.startswith("```"):
+                        diagram_raw = diagram_raw.replace("```", "").strip()
+                    
+                    repo.summary = summary_raw
+                    repo.architecture_diagram = diagram_raw
+                else:
+                    repo.summary = ai_response
+                    
+            except Exception as ai_err:
+                logger.error(f"Failed to generate AI summary: {ai_err}")
+
             repo.status = "READY"
         
         # Mark job completed
