@@ -56,6 +56,12 @@ class Repository(Base):
         back_populates="repository",
         cascade="all, delete-orphan",
     )
+    messages = relationship(
+        "ChatMessage",
+        back_populates="repository",
+        cascade="all, delete-orphan",
+        order_by="ChatMessage.created_at"
+    )
 
     def __repr__(self) -> str:
         return f"<Repository(name={self.name}, status={self.status})>"
@@ -116,3 +122,27 @@ class File(Base):
 
     def __repr__(self) -> str:
         return f"<File(path={self.path}, language={self.language})>"
+
+
+class ChatMessage(Base):
+    """A single chat message in a repository's conversation history."""
+
+    __tablename__ = "chat_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    repo_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("repositories.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role = Column(String(20), nullable=False)  # 'user' or 'assistant'
+    content = Column(Text, nullable=False)
+    sources = Column(JSON, nullable=True)  # Store JSON representation of citations
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    # Relationships
+    repository = relationship("Repository", back_populates="messages")
+
+    def __repr__(self) -> str:
+        return f"<ChatMessage(repo_id={self.repo_id}, role={self.role})>"

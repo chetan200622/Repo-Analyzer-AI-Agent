@@ -137,15 +137,37 @@ class RAGService:
             history_str = "No previous conversation history."
         
         # 3. Generate Answer
+        full_response = ""
         try:
             formatted_prompt = self.prompt.format(history=history_str, context=context_str, question=query)
             
             # Stream the LLM response
             for chunk in self.llm.stream(formatted_prompt):
+                full_response += chunk
                 yield json.dumps({"token": chunk}) + "\n"
                 
             # Yield the sources at the end
             yield json.dumps({"sources": chunks}) + "\n"
+            
+            # Save assistant message to DB
+            from app.infrastructure.database import SessionLocal
+            from app.domain.models import ChatMessage as DBChatMessage
+            import uuid
+            
+            try:
+                db = SessionLocal()
+                assistant_msg = DBChatMessage(
+                    repo_id=uuid.UUID(repo_id),
+                    role="assistant",
+                    content=full_response,
+                    sources=chunks if chunks else None
+                )
+                db.add(assistant_msg)
+                db.commit()
+            except Exception as db_err:
+                logger.error(f"Failed to save assistant message to DB: {db_err}")
+            finally:
+                db.close()
             
         except Exception as e:
             logger.error(f"Error during LLM streaming: {e}")

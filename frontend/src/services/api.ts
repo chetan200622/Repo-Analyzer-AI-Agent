@@ -53,6 +53,8 @@ export const api = {
   
   getJobForRepo: (repoId: string) => fetchApi<AnalysisJob>(`/api/jobs/repo/${repoId}`),
   
+  getChatHistory: (repoId: string) => fetchApi<any[]>(`/api/repositories/${repoId}/chat/history`),
+  
   chatWithRepo: (repoId: string, message: string) => fetchApi<any>(`/api/chat`, {
     method: 'POST',
     body: JSON.stringify({ repo_id: repoId, message }),

@@ -48,6 +48,28 @@ export function ChatInterface({ repoId }: { repoId: string }) {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    async function loadHistory() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/repositories/${repoId}/chat/history`);
+        if (response.ok) {
+          const history = await response.json();
+          if (history && history.length > 0) {
+            setMessages(history.map((h: any) => ({
+              id: h.id,
+              role: h.role,
+              content: h.content,
+              sources: h.sources
+            })));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load chat history:", err);
+      }
+    }
+    loadHistory();
+  }, [repoId]);
+
   const handleSend = async () => {
     if (!input.trim() || isGenerating) return;
 
@@ -71,19 +93,12 @@ export function ChatInterface({ repoId }: { repoId: string }) {
     setMessages((prev) => [...prev, newUserMsg, newAssistantMsg]);
 
     try {
-      // Keep only the last 10 messages for context, excluding the current one we are about to add
-      const historyPayload = messages
-        .filter(msg => !msg.isStreaming && msg.content.trim() !== '')
-        .slice(-10)
-        .map(msg => ({ role: msg.role, content: msg.content }));
-
       const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           repo_id: repoId, 
-          message: userMessage,
-          history: historyPayload
+          message: userMessage
         }),
       });
 
