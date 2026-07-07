@@ -1,56 +1,98 @@
+# Intent classification for codebase chat queries
 from enum import Enum
 import logging
-from langchain_ollama import OllamaLLM
+import re
 
 logger = logging.getLogger(__name__)
 
+
 class ChatIntent(str, Enum):
     GENERAL = "GENERAL"
+    UNDERSTANDING = "UNDERSTANDING"
     ARCHITECTURE = "ARCHITECTURE"
-    CODE_SEARCH = "CODE_SEARCH"
+    CODE_EXPLANATION = "CODE_EXPLANATION"
+    BUG_FINDING = "BUG_FINDING"
+    NAVIGATION = "NAVIGATION"
+    LEARNING = "LEARNING"
+    REFACTORING = "REFACTORING"
+
+
+# Fast keyword-based classification (no LLM call needed)
+INTENT_PATTERNS = {
+    ChatIntent.GENERAL: [
+        r"\b(hi|hello|hey|thanks|thank you|bye|good morning|good evening|how are you)\b",
+    ],
+    ChatIntent.UNDERSTANDING: [
+        r"\b(what does this (project|repo|repository|app|application) do)\b",
+        r"\b(what is this|purpose of this|overview|about this)\b",
+        r"\b(explain the project|summarize|summary)\b",
+    ],
+    ChatIntent.ARCHITECTURE: [
+        r"\b(architecture|tech stack|stack|design pattern|folder structure|structure)\b",
+        r"\b(how is.*(organized|structured|designed|built))\b",
+        r"\b(backend|frontend|database|api).*(architecture|design|layer)\b",
+        r"\b(system design|high level|overview of)\b",
+    ],
+    ChatIntent.CODE_EXPLANATION: [
+        r"\b(what does|explain|how does|how is|walk me through)\b.*\b(function|method|class|file|module|component|service)\b",
+        r"\b(explain|what is|what does)\b.*\.(py|ts|tsx|js|jsx|go|rs)\b",
+        r"\b(what does .+ do)\b",
+        r"\b(explain the code|code explanation|walk through)\b",
+    ],
+    ChatIntent.BUG_FINDING: [
+        r"\b(bug|error|issue|problem|fail|crash|broken|wrong|fix|debug)\b",
+        r"\b(why is|why does|why isn't|not working|doesn't work)\b",
+        r"\b(troubleshoot|diagnose|investigate)\b",
+    ],
+    ChatIntent.NAVIGATION: [
+        r"\b(where is|find|locate|which file|show me|path to)\b",
+        r"\b(implemented|defined|declared|used|called)\b",
+        r"\b(where.*(jwt|auth|login|signup|database|config|middleware|route))\b",
+    ],
+    ChatIntent.LEARNING: [
+        r"\b(teach me|how to|learn|understand|guide|tutorial|explain how)\b",
+        r"\b(how.*(works|flow|process|pipeline))\b",
+        r"\b(step by step|walkthrough)\b",
+    ],
+    ChatIntent.REFACTORING: [
+        r"\b(improve|refactor|optimize|better|clean up|simplify|restructure)\b",
+        r"\b(how can.*(improve|better|optimize|refactor))\b",
+        r"\b(code smell|technical debt|best practice)\b",
+        r"\b(add|implement|create|build).*(feature|endpoint|module|service)\b",
+    ],
+}
+
 
 class IntentRouter:
-    def __init__(self, llm=None):
-        # We can reuse the existing LLM instance
-        self.llm = llm or OllamaLLM(model="qwen2.5-coder")
-
     def route_query(self, query: str) -> ChatIntent:
         """
-        Classifies a user query into one of three intents to determine how to process it.
+        Fast keyword-based intent classification.
+        No LLM call needed — saves latency on every chat message.
         """
-        prompt = f"""You are an Intent Classifier for an AI Codebase Assistant. 
-Analyze the following user message and classify it into EXACTLY ONE of these categories:
+        query_lower = query.lower().strip()
 
-1. GENERAL: The user is greeting you, saying thank you, making small talk, or asking a general question that does not require any knowledge about the codebase.
-2. ARCHITECTURE: The user is asking for a high-level summary of the repository, the tech stack, what the project is about, or what libraries/dependencies it uses.
-3. CODE_SEARCH: The user is asking a specific technical question about the code, how a feature is implemented, where a file is, or asking to debug something.
+        # Score each intent by number of pattern matches
+        scores = {}
+        for intent, patterns in INTENT_PATTERNS.items():
+            score = 0
+            for pattern in patterns:
+                try:
+                    if re.search(pattern, query_lower):
+                        score += 1
+                except re.error:
+                    pass
+            if score > 0:
+                scores[intent] = score
 
-User Message: "{query}"
+        if scores:
+            best_intent = max(scores, key=scores.get)
+            logger.info(f"Intent classified as {best_intent.value} for query: {query[:80]}")
+            return best_intent
 
-Output ONLY the category name (GENERAL, ARCHITECTURE, or CODE_SEARCH). Do not output anything else.
-"""
-        try:
-            # We want a fast response, so we could theoretically use a smaller model if configured, 
-            # but for now we use the main one.
-            response_obj = self.llm.invoke(prompt)
-            # Handle both string responses and objects with .content (just in case)
-            raw_result = getattr(response_obj, "content", str(response_obj)).strip().upper()
-            
-            # Clean up the output in case the LLM was chatty
-            if "GENERAL" in raw_result:
-                return ChatIntent.GENERAL
-            elif "ARCHITECTURE" in raw_result:
-                return ChatIntent.ARCHITECTURE
-            elif "CODE_SEARCH" in raw_result:
-                return ChatIntent.CODE_SEARCH
-            
-            # Fallback if the LLM output something weird
-            logger.warning(f"Intent Router received unexpected output: {raw_result}, defaulting to CODE_SEARCH")
-            return ChatIntent.CODE_SEARCH
-            
-        except Exception as e:
-            logger.error(f"Intent classification failed: {str(e)}. Defaulting to CODE_SEARCH.")
-            return ChatIntent.CODE_SEARCH
+        # Default to CODE_EXPLANATION for technical queries
+        logger.info(f"No intent match, defaulting to CODE_EXPLANATION for: {query[:80]}")
+        return ChatIntent.CODE_EXPLANATION
 
-# Create a singleton instance
+
+# Singleton instance
 intent_router = IntentRouter()

@@ -1,39 +1,87 @@
+# RAG service — retrieves code context and generates AI responses for codebase chat
 import logging
+import json
+import uuid
 from typing import Dict, Any, List
+
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import PromptTemplate
+
 from app.services.retrieval_service import retrieval_service
 from app.services.intent_router import intent_router, ChatIntent
 from app.infrastructure.database import SessionLocal
-from app.domain.models import Repository, ChatMessage as DBChatMessage
-import uuid
+from app.domain.models import Repository, File, ChatMessage as DBChatMessage
 
 logger = logging.getLogger(__name__)
 
-# Using qwen2.5-coder as it is highly recommended for coding tasks in the PRD
-# If it's not downloaded on the host, they will need to `ollama pull qwen2.5-coder`
 OLLAMA_MODEL = "qwen2.5-coder"
 OLLAMA_BASE_URL = "http://localhost:11434"
 
-PROMPT_TEMPLATE = """You are an elite Principal Software Engineer and AI Architecture Expert analyzing a codebase.
-You are tasked with answering a developer's question using ONLY the provided code context and previous conversation history.
+# ─────────────────────────────────────────────────────────────────
+# System Prompt — implements the 10 chatbot intelligence principles
+# ─────────────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """You are a Principal Software Engineer who has **already read, understood, and mentally modeled the entire codebase**. You answer questions as if you are an experienced team member who knows every file, every design decision, and every quirk of this repository.
 
-CRITICAL INSTRUCTIONS:
-1. FORMATTING: You MUST format your response using beautifully structured Markdown. Use code blocks (e.g., ```python) for code snippets, bullet points for lists, and bold text for emphasis.
-2. ACCURACY & EXPLANATIONS: You must accurately answer questions about the repository based on the Code Context. Do NOT hallucinate code that doesn't exist in the repository. However, if the user asks for explanations, real-world examples, or analogies to help them understand the code, you are ENCOURAGED to use your general knowledge to provide them.
-3. CONVERSATION: If the user is just saying hello, greeting you, or asking a generic non-technical question, politely greet them back and ask what they would like to know about the codebase.
-4. CITATIONS: When mentioning specific files or lines, refer to them clearly.
-5. TONE: Be direct, technical, and highly professional. Do not write fluff.
+## Your Core Behaviors
 
-Conversation History:
+### 1. Understand the Full Repository
+You have access to the full repository context below. Use it to understand the project's purpose, folder structure, tech stack, dependencies, APIs, configuration, and how modules connect.
+
+### 2. Reason Before Answering
+Before responding, internally consider:
+- Which files and functions are relevant?
+- Are there multiple implementations?
+- Does this feature depend on other modules?
+- Is the answer affected by configuration?
+- Does the README contradict the implementation?
+Then produce a consolidated, well-reasoned answer.
+
+### 3. Cite Evidence — Always
+Every technical statement MUST be backed by specific file paths and code references. Example:
+> Authentication starts in `routes/auth.py`, where the `/login` endpoint validates credentials. It then calls `AuthService.login()` in `services/auth_service.py`.
+
+### 4. Connect Information
+When explaining a feature, trace the **complete flow** — don't explain isolated functions. Connect frontend → API route → validation → service layer → database → response.
+
+### 5. Adapt Your Explanation Level
+- For conceptual questions: use analogies and high-level explanations
+- For technical questions: be precise with code references, line numbers, function signatures
+
+### 6. Admit Uncertainty
+If the repository doesn't clearly answer a question, say so explicitly:
+> "I couldn't find any implementation of email verification. The README mentions it, but there is no corresponding route or service."
+
+### 7. Maintain Conversation Context
+Use the conversation history to avoid re-explaining. If the user asks a follow-up, build on previous answers.
+
+### 8. Offer Useful Follow-ups
+End answers with 2-3 natural follow-up suggestions that the user might want to explore next.
+
+### 9. Think Like an Engineer
+Don't just describe what code does. Explain:
+- WHY it exists and was designed this way
+- Its dependencies and relationships
+- Possible edge cases and security implications
+- Potential improvements
+
+### 10. Format Beautifully
+Use rich Markdown: headings, code blocks with language tags, bullet points, bold for emphasis. Make responses scannable and professional.
+
+## Repository Context
+{repo_context}
+
+## Conversation History
 {history}
 
-Code Context:
-{context}
+## Retrieved Code Context
+{code_context}
 
-User Question: {question}
+## Current User Question
+{question}
 
-Answer:"""
+## Your Response
+Think step by step. Cite files. Connect the dots. Be the engineer this developer wishes they had on their team."""
+
 
 class RAGService:
     def __init__(self):
@@ -41,155 +89,157 @@ class RAGService:
             self.llm = OllamaLLM(
                 model=OLLAMA_MODEL,
                 base_url=OLLAMA_BASE_URL,
-                temperature=0.1 # Low temperature for factual code answers
+                temperature=0.15,
+                num_ctx=8192,
             )
         except Exception as e:
             logger.error(f"Failed to initialize OllamaLLM: {e}")
             self.llm = None
-            
+
         self.prompt = PromptTemplate(
-            template=PROMPT_TEMPLATE,
-            input_variables=["history", "context", "question"]
+            template=SYSTEM_PROMPT,
+            input_variables=["repo_context", "history", "code_context", "question"]
         )
 
-    def ask_question(self, repo_id: str, query: str, history: List[Dict[str, str]] = None) -> Dict[str, Any]:
+    def _build_repo_context(self, repo_id: str) -> str:
         """
-        Retrieves context, formats prompt, and queries Ollama.
+        Builds a rich repository-wide context string that gets injected into EVERY query.
+        This gives the LLM understanding of the entire project, not just retrieved chunks.
         """
-        logger.info(f"RAG query for repo {repo_id}: {query}")
-        
-        intent = intent_router.route_query(query)
-        
-        chunks = []
-        context_str = ""
-        
-        if intent == ChatIntent.GENERAL:
-            context_str = "No code context needed for this general query."
-        elif intent == ChatIntent.ARCHITECTURE:
-            db = SessionLocal()
-            try:
-                repo = db.query(Repository).filter(Repository.id == uuid.UUID(repo_id)).first()
-                if repo:
-                    context_str = f"Project Summary:\n{repo.summary or 'None'}\n\nDependencies:\n{repo.dependencies or 'None'}"
-                else:
-                    context_str = "Architecture summary not found."
-            finally:
-                db.close()
-        else:
-            # 1. Retrieve code chunks
-            chunks = retrieval_service.search_code_chunks(repo_id, query, limit=5)
-            
-            # 2. Format context
-            context_parts = []
-            if chunks:
-                for i, chunk in enumerate(chunks):
-                    filepath = chunk.get("file_path", "unknown")
-                    start = chunk.get("start_line", "?")
-                    end = chunk.get("end_line", "?")
-                    symbol = chunk.get("symbol_name", "")
-                    code = chunk.get("code", "")
-                    
-                    header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
-                    if symbol:
-                        header += f" [{symbol}]"
-                    
-                    context_parts.append(f"{header}\n{code}\n")
-            
-            context_str = "\n".join(context_parts) if context_parts else "No relevant code context found for this specific query."
-        
-        # Format history
-        history_str = ""
-        if history:
-            history_str = "\n".join([f"{msg.get('role', 'user').capitalize()}: {msg.get('content', '')}" for msg in history])
-        else:
-            history_str = "No previous conversation history."
-        
-        # 3. Generate Answer
+        db = SessionLocal()
         try:
-            formatted_prompt = self.prompt.format(history=history_str, context=context_str, question=query)
-            # Invoke the LLM
-            # Note: For production, we would use streaming. For MVP, we use standard invoke.
-            response = self.llm.invoke(formatted_prompt)
-            
-            return {
-                "answer": response,
-                "sources": chunks
-            }
+            repo = db.query(Repository).filter(Repository.id == uuid.UUID(repo_id)).first()
+            if not repo:
+                return "Repository not found."
+
+            # Get file listing grouped by top-level directory
+            files = db.query(File).filter(File.repo_id == uuid.UUID(repo_id)).order_by(File.path).all()
+            folder_tree = {}
+            for f in files:
+                parts = f.path.split("/")
+                top_dir = parts[0] if len(parts) > 1 else "root"
+                if top_dir not in folder_tree:
+                    folder_tree[top_dir] = []
+                folder_tree[top_dir].append(f"{f.path} ({f.language}, {f.line_count} lines)")
+
+            # Build directory tree string (limit to keep context manageable)
+            tree_lines = []
+            for folder, file_list in sorted(folder_tree.items()):
+                tree_lines.append(f"📁 {folder}/ ({len(file_list)} files)")
+                for fp in file_list[:10]:
+                    tree_lines.append(f"  └─ {fp}")
+                if len(file_list) > 10:
+                    tree_lines.append(f"  └─ ... and {len(file_list) - 10} more files")
+            tree_str = "\n".join(tree_lines[:100])  # Cap at 100 lines
+
+            # Format dependencies
+            deps_str = "None detected"
+            if repo.dependencies:
+                dep_items = list(repo.dependencies.items())[:30]
+                deps_str = ", ".join([f"{k}@{v}" for k, v in dep_items])
+
+            context = f"""**Project:** {repo.name}
+**GitHub:** {repo.github_url}
+**Primary Language:** {repo.primary_language or 'Unknown'}
+**Total Files:** {repo.total_files} | **Total Lines:** {repo.total_lines}
+**Languages:** {json.dumps(repo.language_stats or {}, indent=0)}
+**Dependencies:** {deps_str}
+
+**AI Summary:**
+{repo.summary or 'No summary available.'}
+
+**Folder Structure:**
+{tree_str}"""
+            return context
+
         except Exception as e:
-            logger.error(f"Error during LLM generation: {e}")
-            return {
-                "answer": f"Sorry, there was an error communicating with the local AI model. Is Ollama running with `{OLLAMA_MODEL}` pulled? Error: {str(e)}",
-                "sources": chunks
-            }
+            logger.error(f"Failed to build repo context: {e}")
+            return "Error building repository context."
+        finally:
+            db.close()
+
+    def _build_code_context(self, intent: ChatIntent, repo_id: str, query: str) -> tuple:
+        """
+        Retrieves relevant code chunks based on intent.
+        Returns (context_string, chunks_list).
+        """
+        chunks = []
+
+        if intent == ChatIntent.GENERAL:
+            return "No code context needed for this conversational query.", []
+
+        if intent in (ChatIntent.UNDERSTANDING, ChatIntent.ARCHITECTURE):
+            # For high-level questions, repo context (injected separately) is enough
+            return "See the repository context above for project-level understanding.", []
+
+        # For all code-specific intents, retrieve from vector DB
+        limit = 8 if intent in (ChatIntent.LEARNING, ChatIntent.REFACTORING) else 6
+        chunks = retrieval_service.search_code_chunks(repo_id, query, limit=limit)
+
+        if not chunks:
+            return "No relevant code chunks found in the vector database for this query.", []
+
+        context_parts = []
+        for i, chunk in enumerate(chunks):
+            filepath = chunk.get("file_path", "unknown")
+            start = chunk.get("start_line", "?")
+            end = chunk.get("end_line", "?")
+            symbol = chunk.get("symbol_name", "")
+            code = chunk.get("code", "")
+
+            header = f"── Source {i+1}: `{filepath}` (lines {start}-{end})"
+            if symbol:
+                header += f" → `{symbol}`"
+            context_parts.append(f"{header}\n```\n{code}\n```")
+
+        return "\n\n".join(context_parts), chunks
 
     def stream_question(self, repo_id: str, query: str, history: List[Dict[str, str]] = None):
         """
-        Retrieves context, formats prompt, and streams response from Ollama.
-        Yields JSON strings containing either tokens or the final source list.
+        Retrieves context, builds prompt with full repo understanding, and streams response.
         """
-        import json
         logger.info(f"RAG streaming query for repo {repo_id}: {query}")
-        
+
+        # 1. Classify intent (fast, no LLM call)
         intent = intent_router.route_query(query)
         yield json.dumps({"intent": intent.value}) + "\n"
-        
-        chunks = []
-        context_str = ""
-        
-        if intent == ChatIntent.GENERAL:
-            context_str = "No code context needed for this general query."
-        elif intent == ChatIntent.ARCHITECTURE:
-            db = SessionLocal()
-            try:
-                repo = db.query(Repository).filter(Repository.id == uuid.UUID(repo_id)).first()
-                if repo:
-                    context_str = f"Project Summary:\n{repo.summary or 'None'}\n\nDependencies:\n{repo.dependencies or 'None'}"
-                else:
-                    context_str = "Architecture summary not found."
-            finally:
-                db.close()
-        else:
-            # 1. Retrieve code chunks
-            chunks = retrieval_service.search_code_chunks(repo_id, query, limit=5)
-                
-            # 2. Format context
-            context_parts = []
-            if chunks:
-                for i, chunk in enumerate(chunks):
-                    filepath = chunk.get("file_path", "unknown")
-                    start = chunk.get("start_line", "?")
-                    end = chunk.get("end_line", "?")
-                    symbol = chunk.get("symbol_name", "")
-                    code = chunk.get("code", "")
-                    
-                    header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
-                    if symbol:
-                        header += f" [{symbol}]"
-                    
-                    context_parts.append(f"{header}\n{code}\n")
-            
-            context_str = "\n".join(context_parts) if context_parts else "No relevant code context found for this specific query."
-        
-        # Format history
-        history_str = ""
+
+        # 2. Build repository-wide context (always injected)
+        repo_context = self._build_repo_context(repo_id)
+
+        # 3. Build code-specific context based on intent
+        code_context, chunks = self._build_code_context(intent, repo_id, query)
+
+        # 4. Format conversation history
+        history_str = "No previous conversation."
         if history:
-            history_str = "\n".join([f"{msg.get('role', 'user').capitalize()}: {msg.get('content', '')}" for msg in history])
-        else:
-            history_str = "No previous conversation history."
-        
-        # 3. Generate Answer
+            history_lines = []
+            for msg in history[-10:]:
+                role = msg.get("role", "user").upper()
+                content = msg.get("content", "")
+                # Truncate long messages in history to save context window
+                if len(content) > 500:
+                    content = content[:500] + "..."
+                history_lines.append(f"**{role}:** {content}")
+            history_str = "\n\n".join(history_lines)
+
+        # 5. Format and stream
         full_response = ""
         try:
-            formatted_prompt = self.prompt.format(history=history_str, context=context_str, question=query)
-            
-            # Stream the LLM response
+            formatted_prompt = self.prompt.format(
+                repo_context=repo_context,
+                history=history_str,
+                code_context=code_context,
+                question=query
+            )
+
             for chunk in self.llm.stream(formatted_prompt):
                 full_response += chunk
                 yield json.dumps({"token": chunk}) + "\n"
-                
-            # Yield the sources at the end
+
+            # Yield sources at the end
             yield json.dumps({"sources": chunks}) + "\n"
-            
+
             # Save assistant message to DB
             try:
                 db = SessionLocal()
@@ -205,10 +255,39 @@ class RAGService:
                 logger.error(f"Failed to save assistant message to DB: {db_err}")
             finally:
                 db.close()
-            
+
         except Exception as e:
             logger.error(f"Error during LLM streaming: {e}")
-            yield json.dumps({"token": f"\n\nSorry, there was an error communicating with the local AI model. Error: {str(e)}"}) + "\n"
+            yield json.dumps({"token": f"\n\nSorry, there was an error communicating with the AI model. Error: {str(e)}"}) + "\n"
             yield json.dumps({"sources": chunks}) + "\n"
+
+    def ask_question(self, repo_id: str, query: str, history: List[Dict[str, str]] = None) -> Dict[str, Any]:
+        """Non-streaming version for backward compatibility."""
+        logger.info(f"RAG query for repo {repo_id}: {query}")
+
+        intent = intent_router.route_query(query)
+        repo_context = self._build_repo_context(repo_id)
+        code_context, chunks = self._build_code_context(intent, repo_id, query)
+
+        history_str = "No previous conversation."
+        if history:
+            history_str = "\n".join([f"{msg.get('role', 'user').capitalize()}: {msg.get('content', '')}" for msg in history])
+
+        try:
+            formatted_prompt = self.prompt.format(
+                repo_context=repo_context,
+                history=history_str,
+                code_context=code_context,
+                question=query
+            )
+            response = self.llm.invoke(formatted_prompt)
+            return {"answer": response, "sources": chunks}
+        except Exception as e:
+            logger.error(f"Error during LLM generation: {e}")
+            return {
+                "answer": f"Sorry, there was an error communicating with the AI model. Error: {str(e)}",
+                "sources": chunks
+            }
+
 
 rag_service = RAGService()
