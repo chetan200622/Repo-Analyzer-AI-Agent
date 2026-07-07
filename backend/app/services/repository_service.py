@@ -6,6 +6,9 @@ from typing import Dict, List, Optional
 from git import Repo
 import logging
 
+# Fix macOS fork() safety issue that causes gitpython to crash with SIGABRT (-6)
+os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
 from app.infrastructure.database import SessionLocal
 from app.domain.models import Repository, AnalysisJob, File
 
@@ -124,9 +127,17 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
             shutil.rmtree(target_dir)
 
         # Clone repository
+        import subprocess
         logger.info(f"Cloning {github_url} into {target_dir}")
         _update_job(session, job_id, "Cloning repository...", 20)
-        Repo.clone_from(github_url, target_dir, depth=1)
+        
+        # Use subprocess instead of GitPython to avoid macOS SIGABRT issues
+        subprocess.run(
+            ["git", "clone", "--depth=1", github_url, target_dir],
+            check=True,
+            capture_output=True,
+            text=True
+        )
         
         _update_job(session, job_id, "Scanning files...", 40)
         
@@ -314,7 +325,8 @@ Based on the dependencies and languages, output exactly two sections:
 ## Architecture Diagram
 (Provide a Mermaid.js `graph TD` diagram showing the likely high level architecture. Do NOT wrap it in markdown code blocks, just output the raw mermaid code starting with `graph TD`).
 """
-                ai_response = rag_service.llm.invoke(prompt).content
+                response_obj = rag_service.llm.invoke(prompt)
+                ai_response = getattr(response_obj, "content", str(response_obj))
                 
                 if "## Architecture Diagram" in ai_response:
                     parts = ai_response.split("## Architecture Diagram")

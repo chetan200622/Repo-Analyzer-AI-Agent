@@ -17,6 +17,9 @@ export interface Repository {
   total_files: number;
   total_lines: number;
   language_stats?: Record<string, number>;
+  dependencies?: Record<string, string>;
+  summary?: string;
+  architecture_diagram?: string;
   created_at: string;
   updated_at: string;
 }

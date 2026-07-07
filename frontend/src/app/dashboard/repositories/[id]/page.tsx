@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
 import { ChatInterface } from '@/components/chat/ChatInterface';
 import { AnimatedContainer, AnimatedItem } from '../../AnimatedComponents';
+import { ArchitectureGraph } from '@/components/dashboard/ArchitectureGraph';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,48 @@ export default async function RepositoryPage({ params }: { params: Promise<{ id:
           <p className="text-2xl font-sans text-white drop-shadow-md">{repo.total_lines.toLocaleString()}</p>
         </div>
       </AnimatedItem>
+
+      {/* AI Architecture Summary */}
+      {(repo.summary || repo.dependencies || repo.architecture_diagram) && (
+        <AnimatedItem className="space-y-6">
+          <h3 className="text-2xl font-heading text-white">System Architecture</h3>
+          
+          {repo.architecture_diagram && (
+            <div className="w-full mb-8">
+              <ArchitectureGraph mermaidSyntax={repo.architecture_diagram} />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <SpotlightCard className="p-8 bg-black/40 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] lg:col-span-2">
+              <h4 className="text-lg font-heading text-zinc-200 mb-6">AI Summary</h4>
+              {repo.summary ? (
+                <div className="text-zinc-400 font-light leading-relaxed whitespace-pre-wrap">
+                  {repo.summary}
+                </div>
+              ) : (
+                <p className="text-zinc-600 font-light italic">No AI summary generated for this repository.</p>
+              )}
+            </SpotlightCard>
+            
+            <SpotlightCard className="p-8 bg-black/40 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+              <h4 className="text-lg font-heading text-zinc-200 mb-6">Key Dependencies</h4>
+              {repo.dependencies && Object.keys(repo.dependencies).length > 0 ? (
+                <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                  {Object.entries(repo.dependencies).map(([dep, version]) => (
+                    <div key={dep} className="px-3 py-2 rounded-md bg-white/5 border border-white/10 flex items-center justify-between gap-4 w-full group hover:bg-white/10 transition-colors">
+                      <span className="text-sm font-medium text-zinc-300 truncate">{dep}</span>
+                      <span className="text-xs font-mono text-zinc-500 whitespace-nowrap">{String(version)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-zinc-600 font-light italic">No external dependencies detected.</p>
+              )}
+            </SpotlightCard>
+          </div>
+        </AnimatedItem>
+      )}
 
       {/* Split View: Chat & File Explorer */}
       <AnimatedItem className="grid grid-cols-1 xl:grid-cols-2 gap-8">

@@ -69,6 +69,9 @@ class RepositoryResponse(BaseModel):
     total_files: int = 0
     total_lines: int = 0
     language_stats: Optional[dict] = None
+    dependencies: Optional[dict] = None
+    summary: Optional[str] = None
+    architecture_diagram: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

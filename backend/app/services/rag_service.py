@@ -3,6 +3,10 @@ from typing import Dict, Any, List
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import PromptTemplate
 from app.services.retrieval_service import retrieval_service
+from app.services.intent_router import intent_router, ChatIntent
+from app.infrastructure.database import SessionLocal
+from app.domain.models import Repository, ChatMessage as DBChatMessage
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -54,26 +58,44 @@ class RAGService:
         """
         logger.info(f"RAG query for repo {repo_id}: {query}")
         
-        # 1. Retrieve code chunks
-        chunks = retrieval_service.search_code_chunks(repo_id, query, limit=5)
+        intent = intent_router.route_query(query)
         
-        # 2. Format context
-        context_parts = []
-        if chunks:
-            for i, chunk in enumerate(chunks):
-                filepath = chunk.get("file_path", "unknown")
-                start = chunk.get("start_line", "?")
-                end = chunk.get("end_line", "?")
-                symbol = chunk.get("symbol_name", "")
-                code = chunk.get("code", "")
-                
-                header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
-                if symbol:
-                    header += f" [{symbol}]"
-                
-                context_parts.append(f"{header}\n{code}\n")
+        chunks = []
+        context_str = ""
+        
+        if intent == ChatIntent.GENERAL:
+            context_str = "No code context needed for this general query."
+        elif intent == ChatIntent.ARCHITECTURE:
+            db = SessionLocal()
+            try:
+                repo = db.query(Repository).filter(Repository.id == uuid.UUID(repo_id)).first()
+                if repo:
+                    context_str = f"Project Summary:\n{repo.summary or 'None'}\n\nDependencies:\n{repo.dependencies or 'None'}"
+                else:
+                    context_str = "Architecture summary not found."
+            finally:
+                db.close()
+        else:
+            # 1. Retrieve code chunks
+            chunks = retrieval_service.search_code_chunks(repo_id, query, limit=5)
             
-        context_str = "\n".join(context_parts) if context_parts else "No relevant code context found for this specific query."
+            # 2. Format context
+            context_parts = []
+            if chunks:
+                for i, chunk in enumerate(chunks):
+                    filepath = chunk.get("file_path", "unknown")
+                    start = chunk.get("start_line", "?")
+                    end = chunk.get("end_line", "?")
+                    symbol = chunk.get("symbol_name", "")
+                    code = chunk.get("code", "")
+                    
+                    header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
+                    if symbol:
+                        header += f" [{symbol}]"
+                    
+                    context_parts.append(f"{header}\n{code}\n")
+            
+            context_str = "\n".join(context_parts) if context_parts else "No relevant code context found for this specific query."
         
         # Format history
         history_str = ""
@@ -108,26 +130,45 @@ class RAGService:
         import json
         logger.info(f"RAG streaming query for repo {repo_id}: {query}")
         
-        # 1. Retrieve code chunks
-        chunks = retrieval_service.search_code_chunks(repo_id, query, limit=5)
-            
-        # 2. Format context
-        context_parts = []
-        if chunks:
-            for i, chunk in enumerate(chunks):
-                filepath = chunk.get("file_path", "unknown")
-                start = chunk.get("start_line", "?")
-                end = chunk.get("end_line", "?")
-                symbol = chunk.get("symbol_name", "")
-                code = chunk.get("code", "")
+        intent = intent_router.route_query(query)
+        yield json.dumps({"intent": intent.value}) + "\n"
+        
+        chunks = []
+        context_str = ""
+        
+        if intent == ChatIntent.GENERAL:
+            context_str = "No code context needed for this general query."
+        elif intent == ChatIntent.ARCHITECTURE:
+            db = SessionLocal()
+            try:
+                repo = db.query(Repository).filter(Repository.id == uuid.UUID(repo_id)).first()
+                if repo:
+                    context_str = f"Project Summary:\n{repo.summary or 'None'}\n\nDependencies:\n{repo.dependencies or 'None'}"
+                else:
+                    context_str = "Architecture summary not found."
+            finally:
+                db.close()
+        else:
+            # 1. Retrieve code chunks
+            chunks = retrieval_service.search_code_chunks(repo_id, query, limit=5)
                 
-                header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
-                if symbol:
-                    header += f" [{symbol}]"
-                
-                context_parts.append(f"{header}\n{code}\n")
+            # 2. Format context
+            context_parts = []
+            if chunks:
+                for i, chunk in enumerate(chunks):
+                    filepath = chunk.get("file_path", "unknown")
+                    start = chunk.get("start_line", "?")
+                    end = chunk.get("end_line", "?")
+                    symbol = chunk.get("symbol_name", "")
+                    code = chunk.get("code", "")
+                    
+                    header = f"--- Source {i+1}: {filepath} (lines {start}-{end})"
+                    if symbol:
+                        header += f" [{symbol}]"
+                    
+                    context_parts.append(f"{header}\n{code}\n")
             
-        context_str = "\n".join(context_parts) if context_parts else "No relevant code context found for this specific query."
+            context_str = "\n".join(context_parts) if context_parts else "No relevant code context found for this specific query."
         
         # Format history
         history_str = ""
@@ -150,10 +191,6 @@ class RAGService:
             yield json.dumps({"sources": chunks}) + "\n"
             
             # Save assistant message to DB
-            from app.infrastructure.database import SessionLocal
-            from app.domain.models import ChatMessage as DBChatMessage
-            import uuid
-            
             try:
                 db = SessionLocal()
                 assistant_msg = DBChatMessage(

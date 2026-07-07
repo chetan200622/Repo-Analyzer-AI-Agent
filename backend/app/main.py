@@ -1,4 +1,7 @@
 # FastAPI application entry point — CORS, routers, logging, and lifespan
+import os
+os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
 import logging
 from contextlib import asynccontextmanager
 
@@ -44,7 +47,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         settings.FRONTEND_URL,
+        "http://localhost:3000",
         "http://localhost:3001",
+        "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
     ],
     allow_credentials=True,

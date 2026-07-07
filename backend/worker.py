@@ -1,4 +1,7 @@
 import os
+# Fix macOS fork() safety issue that causes gitpython to crash with SIGABRT (-6)
+os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
 import sys
 from redis import Redis
 from rq import SimpleWorker
