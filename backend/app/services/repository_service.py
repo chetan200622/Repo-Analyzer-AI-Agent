@@ -304,12 +304,22 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
             if language_stats:
                 repo.primary_language = max(language_stats.items(), key=lambda x: x[1])[0]
                 
+            # Extract README for better context
+            readme_content = ""
+            readme_path = os.path.join(target_dir, "README.md")
+            if os.path.exists(readme_path):
+                try:
+                    with open(readme_path, "r", encoding="utf-8") as f:
+                        readme_content = f.read()[:2000] # First 2000 chars is usually enough for a summary
+                except Exception:
+                    pass
+                
             # --- Generate AI Architecture Summary ---
             _update_job(session, job_id, "Generating AI Architecture Summary...", 98)
             try:
                 from app.services.rag_service import rag_service
                 prompt = f"""
-You are an expert software architect. Analyze the following repository metadata and generate a high-level summary and architecture diagram.
+You are an expert software architect. Analyze the following repository metadata and generate a high-level summary and a clean architecture diagram.
 
 Repository Name: {repo.name}
 Primary Language: {repo.primary_language}
@@ -317,13 +327,16 @@ Language Stats: {json.dumps(language_stats, indent=2)}
 Total Files: {files_scanned}
 Dependencies: {json.dumps(dependencies_gathered, indent=2)}
 
-Based on the dependencies and languages, output exactly two sections:
+README Snippet:
+{readme_content}
+
+Based on the README, dependencies and languages, output exactly two sections:
 
 ## Architecture Summary
-(Write 2 paragraphs explaining what kind of application this is, what stack it uses, and what its main components are likely to be based on the dependencies).
+(Write 2 paragraphs explaining what kind of application this is. If it is a collection of apps or templates, say so explicitly. Do not invent a monolithic web architecture if it is just a monorepo of scripts.)
 
 ## Architecture Diagram
-(Provide a Mermaid.js `graph TD` diagram showing the likely high level architecture. Do NOT wrap it in markdown code blocks, just output the raw mermaid code starting with `graph TD`).
+(Provide a Mermaid.js `graph TD` diagram showing the likely high level architecture. Keep it clean and avoid excessive criss-crossing edges. Do NOT wrap it in markdown code blocks, just output the raw mermaid code starting with `graph TD`).
 """
                 response_obj = rag_service.llm.invoke(prompt)
                 ai_response = getattr(response_obj, "content", str(response_obj))

@@ -6,13 +6,13 @@ const container: any = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.1 }
+    transition: { staggerChildren: 0.08 }
   }
 };
 
 const item: any = {
-  hidden: { opacity: 0, y: 20, filter: 'blur(10px)' },
-  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { type: "spring", stiffness: 300, damping: 24 } }
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 400, damping: 28 } }
 };
 
 export function AnimatedContainer({ children, className }: { children: React.ReactNode, className?: string }) {
@@ -32,20 +32,6 @@ export function AnimatedItem({ children, className }: { children: React.ReactNod
   return (
     <motion.div variants={item} className={className}>
       {children}
-    </motion.div>
-  );
-}
-
-export function AnimatedHeader() {
-  return (
-    <motion.div
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ duration: 1, ease: "easeOut" }}
-    >
-      <h2 className="text-6xl md:text-7xl font-heading text-white tracking-tight leading-tight drop-shadow-2xl">
-        Your Workspace
-      </h2>
     </motion.div>
   );
 }

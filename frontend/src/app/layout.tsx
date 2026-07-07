@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/query-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const playfair = Playfair_Display({
-  variable: "--font-playfair",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -32,13 +32,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased dark bg-black`}
-      style={{ colorScheme: 'dark' }}
+      className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-black text-zinc-100 selection:bg-indigo-500/30 selection:text-indigo-200">
+      <body className="min-h-full flex flex-col bg-gray-50 text-zinc-900 selection:bg-blue-500/20 selection:text-blue-900">
         <QueryProvider>
           {children}
-          <Toaster theme="dark" />
+          <Toaster theme="light" />
         </QueryProvider>
       </body>
     </html>
