@@ -1,14 +1,14 @@
 'use client';
 
+// Tab navigation for repo detail page — 3 tabs: Overview, Architecture, Explore
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, GitFork, FolderTree, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, GitFork, Terminal } from 'lucide-react';
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'architecture', label: 'Architecture', icon: GitFork },
-  { id: 'files', label: 'Files', icon: FolderTree },
-  { id: 'chat', label: 'Chat', icon: MessageSquare },
+  { id: 'explore', label: 'Explore', icon: Terminal },
 ] as const;
 
 type TabId = typeof tabs[number]['id'];
@@ -16,22 +16,20 @@ type TabId = typeof tabs[number]['id'];
 interface RepoTabsProps {
   overviewContent: React.ReactNode;
   architectureContent: React.ReactNode;
-  filesContent: React.ReactNode;
-  chatContent: React.ReactNode;
+  exploreContent: React.ReactNode;
 }
 
-export function RepoTabs({ overviewContent, architectureContent, filesContent, chatContent }: RepoTabsProps) {
+export function RepoTabs({ overviewContent, architectureContent, exploreContent }: RepoTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
   const contentMap: Record<TabId, React.ReactNode> = {
     overview: overviewContent,
     architecture: architectureContent,
-    files: filesContent,
-    chat: chatContent,
+    explore: exploreContent,
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Tab Navigation */}
       <div className="border-b border-gray-200">
         <nav className="flex gap-1 -mb-px" aria-label="Tabs">

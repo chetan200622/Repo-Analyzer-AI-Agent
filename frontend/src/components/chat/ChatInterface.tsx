@@ -47,7 +47,7 @@ const INTENT_LABELS: Record<string, { label: string; color: string }> = {
   GENERAL: { label: '💬 Chat', color: 'bg-gray-50 text-gray-600 border-gray-200' },
 };
 
-export function ChatInterface({ repoId, repoName }: { repoId: string; repoName?: string }) {
+export function ChatInterface({ repoId, repoName, compact }: { repoId: string; repoName?: string; compact?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -174,16 +174,16 @@ export function ChatInterface({ repoId, repoName }: { repoId: string; repoName?:
   };
 
   return (
-    <div className="h-[750px] bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
+    <div className={`${compact ? 'h-full' : 'h-[750px] border border-gray-200 rounded-xl shadow-sm'} bg-white overflow-hidden flex flex-col`}>
       {/* Header */}
-      <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-white" />
+      <div className={`${compact ? 'px-3 py-2' : 'px-5 py-3'} border-b border-gray-100 bg-gray-50/50 flex items-center justify-between shrink-0`}>
+        <div className="flex items-center gap-2">
+          <div className={`${compact ? 'w-6 h-6' : 'w-8 h-8'} rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center`}>
+            <Sparkles className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-white`} />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-zinc-800">Code Intelligence</h3>
-            <p className="text-[10px] text-zinc-400">{repoName ? `Analyzing ${repoName}` : 'Ask anything about the codebase'}</p>
+            <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-semibold text-zinc-800`}>Code Intelligence</h3>
+            {!compact && <p className="text-[10px] text-zinc-400">{repoName ? `Analyzing ${repoName}` : 'Ask anything about the codebase'}</p>}
           </div>
         </div>
         {isThinking && (
@@ -203,21 +203,26 @@ export function ChatInterface({ repoId, repoName }: { repoId: string; repoName?:
       </div>
 
       {/* Messages */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-5 custom-scrollbar">
+      <div ref={messagesContainerRef} className={`flex-1 overflow-y-auto ${compact ? 'px-3 py-3 space-y-3' : 'px-5 py-4 space-y-5'} custom-scrollbar`}>
         {/* Quick Actions — shown when no messages */}
         {showQuickActions && messages.length === 0 && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center h-full">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-5">
-              <Sparkles className="w-7 h-7 text-white" />
-            </div>
-            <h3 className="text-lg font-heading font-semibold text-zinc-800 mb-1">Ask me anything about this repo</h3>
-            <p className="text-sm text-zinc-400 mb-6">I&apos;ve analyzed the entire codebase and I&apos;m ready to help.</p>
-            <div className="grid grid-cols-2 gap-2 max-w-lg w-full">
-              {QUICK_ACTIONS.map((action) => (
+            {!compact && (
+              <>
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-5">
+                  <Sparkles className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-lg font-heading font-semibold text-zinc-800 mb-1">Ask me anything about this repo</h3>
+                <p className="text-sm text-zinc-400 mb-6">I&apos;ve analyzed the entire codebase and I&apos;m ready to help.</p>
+              </>
+            )}
+            {compact && <p className="text-xs text-zinc-400 mb-3">Quick questions:</p>}
+            <div className={`${compact ? 'flex flex-col gap-1 w-full' : 'grid grid-cols-2 gap-2 max-w-lg w-full'}`}>
+              {QUICK_ACTIONS.slice(0, compact ? 4 : 6).map((action) => (
                 <button
                   key={action}
                   onClick={() => handleSend(action)}
-                  className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 text-sm text-zinc-600 hover:text-blue-700 transition-all text-left group"
+                  className={`flex items-center gap-2 ${compact ? 'px-2.5 py-2 text-xs' : 'px-3.5 py-2.5 text-sm'} rounded-lg bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 text-zinc-600 hover:text-blue-700 transition-all text-left group`}
                 >
                   <ChevronRight size={14} className="text-zinc-300 group-hover:text-blue-500 shrink-0 transition-colors" />
                   <span className="truncate">{action}</span>

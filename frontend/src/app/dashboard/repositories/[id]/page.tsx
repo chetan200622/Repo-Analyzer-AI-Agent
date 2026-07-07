@@ -2,10 +2,9 @@ import { api } from '@/services/api';
 import { ArrowLeft, ExternalLink, Calendar, Code2, FileText, Package, GitBranch, BookOpen, Shield, Layers } from 'lucide-react';
 import Link from 'next/link';
 import { RepoTabs } from '@/components/dashboard/RepoTabs';
-import { ChatInterface } from '@/components/chat/ChatInterface';
 import { ArchitectureGraph } from '@/components/dashboard/ArchitectureGraph';
 import { LanguageBar } from '@/components/dashboard/LanguageBar';
-import { FileTreeExplorer } from '@/components/dashboard/FileTreeExplorer';
+import { IDELayout } from '@/components/dashboard/IDELayout';
 
 export const dynamic = 'force-dynamic';
 
@@ -176,19 +175,20 @@ export default async function RepositoryPage({ params }: { params: Promise<{ id:
     </div>
   );
 
-  /* ──────────────────── Files Tab — VS Code style ──────────────────── */
-  const filesContent = (
-    <FileTreeExplorer files={files || []} />
-  );
-
-  /* ──────────────────── Chat Tab ──────────────────── */
-  const chatContent = (
-    <ChatInterface repoId={repoId} repoName={repo.name} />
+  /* ──────────────────── Explore Tab — IDE Layout (File Tree | Code | Chat) ──────────────────── */
+  const exploreContent = (
+    <IDELayout
+      files={files || []}
+      repoId={repoId}
+      repoName={repo.name}
+      githubUrl={repo.github_url}
+      branch={repo.branch || 'main'}
+    />
   );
 
   /* ──────────────────── Page Layout ──────────────────── */
   return (
-    <div className="flex-1 space-y-6 p-4 md:px-8 md:py-6 max-w-[1200px] mx-auto w-full">
+    <div className="flex-1 space-y-6 p-4 md:px-8 md:py-6 max-w-[1400px] mx-auto w-full">
       {/* Breadcrumb + Header */}
       <div className="space-y-4">
         <Link href="/dashboard" className="inline-flex items-center text-sm font-medium text-zinc-400 hover:text-blue-600 transition-colors">
@@ -228,12 +228,11 @@ export default async function RepositoryPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs: Overview | Architecture | Explore */}
       <RepoTabs
         overviewContent={overviewContent}
         architectureContent={architectureContent}
-        filesContent={filesContent}
-        chatContent={chatContent}
+        exploreContent={exploreContent}
       />
     </div>
   );
