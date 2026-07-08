@@ -1,5 +1,6 @@
 'use client';
 
+// Job progress tracker — shows analysis pipeline status with stats
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/services/api';
@@ -36,7 +37,7 @@ export function JobTracker({ repoId, onComplete }: { repoId: string; onComplete?
     return (
       <div className="flex items-center justify-center p-6 text-zinc-500">
         <Loader2 className="w-5 h-5 animate-spin mr-3" strokeWidth={1.5} />
-        <span className="text-sm font-medium">Initializing spatial grid...</span>
+        <span className="text-sm font-medium">Initializing analysis...</span>
       </div>
     );
   }
@@ -45,77 +46,74 @@ export function JobTracker({ repoId, onComplete }: { repoId: string; onComplete?
   const isFailed = job.status === 'FAILED';
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between mb-2">
+    <div className="space-y-5">
+      {/* Status header */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           {isCompleted ? (
-            <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-full border border-emerald-500/20 shadow-[0_0_10px_rgba(52,211,153,0.1)]">
+            <div className="bg-emerald-50 text-emerald-500 p-2 rounded-xl border border-emerald-200">
               <CheckCircle2 className="w-5 h-5" strokeWidth={2} />
             </div>
           ) : isFailed ? (
-            <div className="bg-rose-500/10 text-rose-400 p-2 rounded-full border border-rose-500/20 shadow-[0_0_10px_rgba(251,113,133,0.1)]">
+            <div className="bg-red-50 text-red-500 p-2 rounded-xl border border-red-200">
               <AlertCircle className="w-5 h-5" strokeWidth={2} />
             </div>
           ) : (
-            <div className="bg-white/10 text-white p-2 rounded-full border border-white/20 shadow-[0_0_10px_rgba(255,255,255,0.1)]">
+            <div className="bg-blue-50 text-blue-500 p-2 rounded-xl border border-blue-200">
               <Loader2 className="w-5 h-5 animate-spin" strokeWidth={2} />
             </div>
           )}
-          <span className={`text-sm font-semibold tracking-wide ${isFailed ? 'text-rose-400' : isCompleted ? 'text-emerald-400' : 'text-white'}`}>
+          <span className={`text-sm font-semibold ${isFailed ? 'text-red-600' : isCompleted ? 'text-emerald-600' : 'text-zinc-700'}`}>
             {isFailed ? 'Analysis Failed' : job.current_step || 'Initializing...'}
           </span>
         </div>
-        <span className="text-lg font-bold text-white drop-shadow-md">
+        <span className={`text-lg font-bold ${isFailed ? 'text-red-500' : isCompleted ? 'text-emerald-500' : 'text-blue-600'}`}>
           {job.progress_percentage}%
         </span>
       </div>
       
-      <div className="relative pt-2">
-        <Progress 
-          value={job.progress_percentage} 
-          className={`h-2 bg-white/5 rounded-full overflow-hidden ${
-            isFailed 
-              ? '[&_[data-slot=progress-indicator]]:bg-rose-500 [&_[data-slot=progress-indicator]]:shadow-[0_0_10px_rgba(251,113,133,0.5)]' 
-              : isCompleted 
-                ? '[&_[data-slot=progress-indicator]]:bg-emerald-500 [&_[data-slot=progress-indicator]]:shadow-[0_0_10px_rgba(52,211,153,0.5)]' 
-                : '[&_[data-slot=progress-indicator]]:bg-white [&_[data-slot=progress-indicator]]:shadow-[0_0_10px_rgba(255,255,255,0.5)]'
-          }`}
-        />
-      </div>
+      {/* Progress bar */}
+      <Progress 
+        value={job.progress_percentage} 
+        className={`h-2 bg-gray-100 rounded-full overflow-hidden ${
+          isFailed 
+            ? '[&_[data-slot=progress-indicator]]:bg-red-500' 
+            : isCompleted 
+              ? '[&_[data-slot=progress-indicator]]:bg-emerald-500' 
+              : '[&_[data-slot=progress-indicator]]:bg-blue-500'
+        }`}
+      />
       
+      {/* Stats grid */}
       <motion.div 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-wrap justify-between gap-4 mt-6 pt-6 border-t border-white/5"
+        className="grid grid-cols-4 gap-4 pt-4 border-t border-gray-100"
       >
-        <div className="flex flex-col">
-          <span className="text-3xl font-heading text-white">{job.files_scanned}</span>
-          <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest mt-1">Files Scanned</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-3xl font-heading text-white">{job.files_ignored}</span>
-          <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest mt-1">Ignored</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-3xl font-heading text-white">{job.secrets_skipped}</span>
-          <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest mt-1">Secrets</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-3xl font-heading text-white">{job.languages_detected}</span>
-          <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest mt-1">Languages</span>
-        </div>
+        {[
+          { value: job.files_scanned, label: 'Files Scanned' },
+          { value: job.files_ignored, label: 'Ignored' },
+          { value: job.secrets_skipped, label: 'Secrets' },
+          { value: job.languages_detected, label: 'Languages' },
+        ].map((stat) => (
+          <div key={stat.label} className="flex flex-col items-center text-center">
+            <span className="text-2xl font-bold text-zinc-800">{stat.value ?? 0}</span>
+            <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-widest mt-1">{stat.label}</span>
+          </div>
+        ))}
       </motion.div>
       
+      {/* Error message */}
       <AnimatePresence>
         {isFailed && job.error_message && (
           <motion.div 
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-6 p-6 bg-rose-500/10 rounded-2xl text-sm text-rose-300 overflow-auto border border-rose-500/20"
+            className="mt-4 p-4 bg-red-50 rounded-xl text-sm text-red-600 overflow-auto border border-red-200"
           >
-            <p className="font-semibold mb-2 flex items-center text-rose-400"><AlertCircle className="w-4 h-4 mr-2" /> Error Log</p>
-            <code className="font-mono text-xs text-rose-200 bg-rose-950/50 p-3 rounded-lg block leading-relaxed">{job.error_message}</code>
+            <p className="font-semibold mb-2 flex items-center text-red-700"><AlertCircle className="w-4 h-4 mr-2" /> Error Log</p>
+            <code className="font-mono text-xs text-red-500 bg-red-100 p-3 rounded-lg block leading-relaxed">{job.error_message}</code>
           </motion.div>
         )}
       </AnimatePresence>
