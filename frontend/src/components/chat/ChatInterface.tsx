@@ -260,7 +260,7 @@ export function ChatInterface({ repoId, repoName, compact }: { repoId: string; r
               <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> Writing...
             </div>
           )}
-          {messages.length > 0 && !compact && (
+          {messages.length > 0 && (
             <button
               onClick={handleExportChat}
               className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-zinc-400 hover:text-zinc-600"
