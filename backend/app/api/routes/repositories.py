@@ -46,8 +46,13 @@ def analyze_repository(request: AnalyzeRequest, db: Session = Depends(get_db)):
         if existing_repo.status == "READY":
             return existing_repo
         elif existing_repo.status in ["QUEUED", "PROCESSING"]:
-            return existing_repo
-        # If FAILED, we will retry (delete and recreate)
+            # If stuck for more than 5 minutes, clear it and retry
+            from datetime import datetime, timedelta
+            age = datetime.utcnow() - existing_repo.created_at
+            if age < timedelta(minutes=5):
+                return existing_repo
+            # Stale — fall through to delete and retry
+        # If FAILED or stale QUEUED/PROCESSING, retry (delete and recreate)
         db.delete(existing_repo)
         db.commit()
 
