@@ -149,3 +149,27 @@ class ChatMessage(Base):
 
     def __repr__(self) -> str:
         return f"<ChatMessage(repo_id={self.repo_id}, role={self.role})>"
+
+
+class TrialSession(Base):
+    """Tracks anonymous user trial usage for the free Gemini tier."""
+
+    __tablename__ = "trial_sessions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_token = Column(String(64), nullable=False, unique=True, index=True)
+    repos_analyzed = Column(Integer, default=0)  # Max 1 free
+    chat_messages_used = Column(Integer, default=0)  # Max 15 free
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self) -> str:
+        return f"<TrialSession(token={self.session_token[:8]}..., chats={self.chat_messages_used})>"
+
+    @property
+    def can_analyze_repo(self) -> bool:
+        return self.repos_analyzed < 1
+
+    @property
+    def can_chat(self) -> bool:
+        return self.chat_messages_used < 15

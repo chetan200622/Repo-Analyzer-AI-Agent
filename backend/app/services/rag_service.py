@@ -1,21 +1,20 @@
 # RAG service — retrieves code context and generates AI responses for codebase chat
 import logging
 import json
+import os
 import uuid
-from typing import Dict, Any, List
-
-from langchain_ollama import OllamaLLM
-from langchain_core.prompts import PromptTemplate
+from typing import Dict, Any, List, Optional
 
 from app.services.retrieval_service import retrieval_service
 from app.services.intent_router import intent_router, ChatIntent
+from app.services.gemini_client import gemini_client
 from app.infrastructure.database import SessionLocal
 from app.domain.models import Repository, File, ChatMessage as DBChatMessage
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_MODEL = "qwen2.5-coder"
-OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_MODEL = os.getenv("LLM_MODEL", "qwen2.5-coder")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 # ─────────────────────────────────────────────────────────────────
 # System Prompt — implements the 10 chatbot intelligence principles
@@ -85,20 +84,25 @@ Think step by step. Cite files. Connect the dots. Be the engineer this developer
 
 class RAGService:
     def __init__(self):
+        self.ollama_llm = None
         try:
-            self.llm = OllamaLLM(
+            from langchain_ollama import OllamaLLM
+            self.ollama_llm = OllamaLLM(
                 model=OLLAMA_MODEL,
                 base_url=OLLAMA_BASE_URL,
                 temperature=0.15,
                 num_ctx=8192,
             )
         except Exception as e:
-            logger.error(f"Failed to initialize OllamaLLM: {e}")
-            self.llm = None
+            logger.warning(f"Ollama not available (will use Gemini): {e}")
 
-        self.prompt = PromptTemplate(
-            template=SYSTEM_PROMPT,
-            input_variables=["repo_context", "history", "code_context", "question"]
+    def _format_prompt(self, repo_context: str, history: str, code_context: str, question: str) -> str:
+        """Format the system prompt with all context."""
+        return SYSTEM_PROMPT.format(
+            repo_context=repo_context,
+            history=history,
+            code_context=code_context,
+            question=question
         )
 
     def _build_repo_context(self, repo_id: str) -> str:
@@ -194,17 +198,18 @@ class RAGService:
 
         return "\n\n".join(context_parts), chunks
 
-    def stream_question(self, repo_id: str, query: str, history: List[Dict[str, str]] = None):
+    def stream_question(self, repo_id: str, query: str, history: List[Dict[str, str]] = None, api_key: Optional[str] = None):
         """
-        Retrieves context, builds prompt with full repo understanding, and streams response.
+        Retrieves context, builds prompt, and streams response.
+        Uses Gemini if api_key provided, else falls back to Ollama.
         """
         logger.info(f"RAG streaming query for repo {repo_id}: {query}")
 
-        # 1. Classify intent (fast, no LLM call)
+        # 1. Classify intent (fast regex, no LLM call)
         intent = intent_router.route_query(query)
         yield json.dumps({"intent": intent.value}) + "\n"
 
-        # 2. Build repository-wide context (always injected)
+        # 2. Build repository-wide context
         repo_context = self._build_repo_context(repo_id)
 
         # 3. Build code-specific context based on intent
@@ -217,27 +222,35 @@ class RAGService:
             for msg in history[-10:]:
                 role = msg.get("role", "user").upper()
                 content = msg.get("content", "")
-                # Truncate long messages in history to save context window
                 if len(content) > 500:
                     content = content[:500] + "..."
                 history_lines.append(f"**{role}:** {content}")
             history_str = "\n\n".join(history_lines)
 
-        # 5. Format and stream
+        # 5. Format prompt and stream
         full_response = ""
         try:
-            formatted_prompt = self.prompt.format(
+            formatted_prompt = self._format_prompt(
                 repo_context=repo_context,
                 history=history_str,
                 code_context=code_context,
                 question=query
             )
 
-            for chunk in self.llm.stream(formatted_prompt):
-                full_response += chunk
-                yield json.dumps({"token": chunk}) + "\n"
+            # Choose provider: Gemini (primary) or Ollama (fallback)
+            use_gemini = bool(api_key or os.getenv("GEMINI_API_KEY"))
 
-            # Yield sources at the end
+            if use_gemini:
+                for chunk in gemini_client.stream(formatted_prompt, api_key=api_key):
+                    full_response += chunk
+                    yield json.dumps({"token": chunk}) + "\n"
+            elif self.ollama_llm:
+                for chunk in self.ollama_llm.stream(formatted_prompt):
+                    full_response += chunk
+                    yield json.dumps({"token": chunk}) + "\n"
+            else:
+                yield json.dumps({"token": "No AI provider available. Please add your Gemini API key in Settings, or start Ollama locally."}) + "\n"
+
             yield json.dumps({"sources": chunks}) + "\n"
 
             # Save assistant message to DB
@@ -258,11 +271,11 @@ class RAGService:
 
         except Exception as e:
             logger.error(f"Error during LLM streaming: {e}")
-            yield json.dumps({"token": f"\n\nSorry, there was an error communicating with the AI model. Error: {str(e)}"}) + "\n"
+            yield json.dumps({"token": f"\n\nError: {str(e)}"}) + "\n"
             yield json.dumps({"sources": chunks}) + "\n"
 
-    def ask_question(self, repo_id: str, query: str, history: List[Dict[str, str]] = None) -> Dict[str, Any]:
-        """Non-streaming version for backward compatibility."""
+    def ask_question(self, repo_id: str, query: str, history: List[Dict[str, str]] = None, api_key: Optional[str] = None) -> Dict[str, Any]:
+        """Non-streaming version (used for repo analysis summary generation)."""
         logger.info(f"RAG query for repo {repo_id}: {query}")
 
         intent = intent_router.route_query(query)
@@ -274,18 +287,26 @@ class RAGService:
             history_str = "\n".join([f"{msg.get('role', 'user').capitalize()}: {msg.get('content', '')}" for msg in history])
 
         try:
-            formatted_prompt = self.prompt.format(
+            formatted_prompt = self._format_prompt(
                 repo_context=repo_context,
                 history=history_str,
                 code_context=code_context,
                 question=query
             )
-            response = self.llm.invoke(formatted_prompt)
+
+            use_gemini = bool(api_key or os.getenv("GEMINI_API_KEY"))
+            if use_gemini:
+                response = gemini_client.invoke(formatted_prompt, api_key=api_key)
+            elif self.ollama_llm:
+                response = self.ollama_llm.invoke(formatted_prompt)
+            else:
+                response = "No AI provider available."
+
             return {"answer": response, "sources": chunks}
         except Exception as e:
             logger.error(f"Error during LLM generation: {e}")
             return {
-                "answer": f"Sorry, there was an error communicating with the AI model. Error: {str(e)}",
+                "answer": f"Error: {str(e)}",
                 "sources": chunks
             }
 

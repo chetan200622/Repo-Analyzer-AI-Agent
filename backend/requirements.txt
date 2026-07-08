@@ -29,3 +29,4 @@ transformers<4.40.0
 # AI & RAG
 langchain-core
 langchain-ollama
+google-generativeai
