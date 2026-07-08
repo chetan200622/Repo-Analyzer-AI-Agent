@@ -68,7 +68,7 @@ function buildTree(files: FileItem[]): TreeNode[] {
       }
 
       if (!isLast) {
-        if (!current[part]._childMap) {
+        if (!(current[part] as any)._childMap) {
           (current[part] as any)._childMap = {};
         }
         current = (current[part] as any)._childMap;
