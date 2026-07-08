@@ -1,5 +1,6 @@
 # Trial service — manages anonymous user free tier (1 repo + 15 chats)
 import logging
+import os
 import secrets
 from datetime import datetime
 from typing import Optional, Tuple
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 FREE_REPO_LIMIT = 1
 FREE_CHAT_LIMIT = 15
+IS_DEV_MODE = os.getenv("APP_ENV", "development") == "development"
 
 
 class TrialService:
@@ -43,6 +45,8 @@ class TrialService:
         Check if user can send a chat message.
         Returns (allowed, remaining).
         """
+        if IS_DEV_MODE:
+            return True, 999
         session = db.query(TrialSession).filter(
             TrialSession.session_token == session_token
         ).first()
@@ -55,6 +59,8 @@ class TrialService:
 
     def use_chat_quota(self, db: Session, session_token: str) -> bool:
         """Consume 1 chat message from trial quota. Returns True if successful."""
+        if IS_DEV_MODE:
+            return True
         session = db.query(TrialSession).filter(
             TrialSession.session_token == session_token
         ).first()
@@ -73,6 +79,8 @@ class TrialService:
         Check if user can analyze a repo.
         Returns (allowed, remaining).
         """
+        if IS_DEV_MODE:
+            return True, 999
         session = db.query(TrialSession).filter(
             TrialSession.session_token == session_token
         ).first()
@@ -85,6 +93,8 @@ class TrialService:
 
     def use_repo_quota(self, db: Session, session_token: str) -> bool:
         """Consume 1 repo analysis from trial quota. Returns True if successful."""
+        if IS_DEV_MODE:
+            return True
         session = db.query(TrialSession).filter(
             TrialSession.session_token == session_token
         ).first()
