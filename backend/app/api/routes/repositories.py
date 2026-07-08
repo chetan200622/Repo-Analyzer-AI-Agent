@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 import httpx
 import re
+import threading
+import logging
 
 from app.api.dependencies import get_db
 from app.domain.models import Repository, AnalysisJob, File
@@ -10,9 +12,10 @@ from app.domain.schemas import (
     RepositoryListResponse, 
     FileResponse
 )
-from app.infrastructure.redis_client import analysis_queue
 from app.services.repository_service import clone_and_scan_repo
 from pydantic import BaseModel, HttpUrl
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/repositories", tags=["repositories"])
 
@@ -70,13 +73,14 @@ def analyze_repository(request: AnalyzeRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(job)
 
-    # Enqueue background task
-    analysis_queue.enqueue(
-        clone_and_scan_repo,
+    # Run analysis in a background thread (no separate worker needed)
+    thread = threading.Thread(
+        target=clone_and_scan_repo,
         args=(str(job.id), str(repo.id), url_str),
-        job_id=str(job.id),
-        job_timeout="10m"
+        daemon=True,
     )
+    thread.start()
+    logger.info("Started analysis thread for repo %s", repo_name)
 
     return repo
 
