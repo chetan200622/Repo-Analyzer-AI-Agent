@@ -2,11 +2,12 @@
 
 // Enhanced chat interface with thinking indicator, intent badges, and follow-up suggestions
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, User, Code2, Loader2, Sparkles, Brain, FileCode, ChevronRight } from 'lucide-react';
+import { Send, Bot, User, Code2, Loader2, Sparkles, Brain, FileCode, ChevronRight, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { getAIHeaders } from '@/components/settings/APIKeyModal';
 
 interface ChatSource {
   file_path: string;
@@ -53,6 +54,7 @@ export function ChatInterface({ repoId, repoName, compact }: { repoId: string; r
   const [isGenerating, setIsGenerating] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(true);
+  const [trialExhausted, setTrialExhausted] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -100,11 +102,33 @@ export function ChatInterface({ repoId, repoName, compact }: { repoId: string; r
     try {
       const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAIHeaders() },
         body: JSON.stringify({ repo_id: repoId, message: userMessage }),
       });
 
+      // Handle trial exhaustion
+      if (response.status === 429) {
+        const errData = await response.json();
+        if (errData.trial_exhausted) {
+          setTrialExhausted(true);
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { ...updated[updated.length - 1], content: 'Free trial limit reached. Please add your Gemini API key in Settings to continue.', isStreaming: false };
+            return updated;
+          });
+          setIsGenerating(false);
+          setIsThinking(false);
+          return;
+        }
+      }
+
       if (!response.ok) throw new Error(`Server returned ${response.status}`);
+
+      // Persist session token from trial system
+      const sessionToken = response.headers.get('X-Session-Token');
+      if (sessionToken) {
+        localStorage.setItem('trial_session_token', sessionToken);
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder('utf-8');
@@ -165,7 +189,7 @@ export function ChatInterface({ repoId, repoName, compact }: { repoId: string; r
     } catch (error: any) {
       setMessages((prev) => {
         const updated = [...prev];
-        updated[updated.length - 1] = { ...updated[updated.length - 1], content: `Error: ${error.message}. Make sure the backend and Ollama are running.`, isStreaming: false };
+        updated[updated.length - 1] = { ...updated[updated.length - 1], content: `Error: ${error.message}. Check your API key or try again.`, isStreaming: false };
         return updated;
       });
       setIsGenerating(false);
