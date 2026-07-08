@@ -105,3 +105,13 @@ def get_repository(repo_id: str, db: Session = Depends(get_db)):
 def list_repository_files(repo_id: str, db: Session = Depends(get_db)):
     files = db.query(File).filter(File.repo_id == repo_id).order_by(File.path).all()
     return files
+
+@router.delete("/{repo_id}")
+def delete_repository(repo_id: str, db: Session = Depends(get_db)):
+    repo = db.query(Repository).filter(Repository.id == repo_id).first()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    db.delete(repo)
+    db.commit()
+    return {"detail": "Repository deleted"}
+
