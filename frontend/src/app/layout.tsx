@@ -20,7 +20,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "RepoMind Agent",
+  title: "Repo Analyzer",
   description: "AI-powered repository analysis and understanding",
 };
 

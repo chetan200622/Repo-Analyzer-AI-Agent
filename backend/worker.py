@@ -15,7 +15,7 @@ from app.core.config import settings
 def run_worker():
     redis_conn = Redis.from_url(settings.REDIS_URL)
     worker = SimpleWorker(['analysis', 'default'], connection=redis_conn)
-    print("Starting RepoMind Agent RQ worker...")
+    print("Starting Repo Analyzer RQ worker...")
     worker.work()
 
 if __name__ == '__main__':

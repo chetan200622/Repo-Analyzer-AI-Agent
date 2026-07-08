@@ -23,7 +23,7 @@ export default function DashboardLayout({
                 <Layers className="h-4 w-4 text-white" strokeWidth={2} />
               </div>
               <span className="hidden font-heading text-[15px] font-bold sm:inline-block tracking-tight text-zinc-900">
-                RepoMind Agent
+                Repo Analyzer
               </span>
             </Link>
             <nav className="flex items-center space-x-6 text-sm font-medium">

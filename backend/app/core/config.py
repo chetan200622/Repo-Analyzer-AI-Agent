@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_ENV: str = "development"
-    APP_NAME: str = "RepoMind Agent"
+    APP_NAME: str = "Repo Analyzer"
     APP_VERSION: str = "0.1.0"
     FRONTEND_URL: str = "http://localhost:3001"
     BACKEND_URL: str = "http://localhost:8001"
