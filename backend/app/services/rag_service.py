@@ -88,7 +88,16 @@ Use the most appropriate diagram type: flowchart for architecture, sequenceDiagr
 {question}
 
 ## Your Response
-Think step by step. Cite files. Connect the dots. Be the engineer this developer wishes they had on their team."""
+IMPORTANT: Always start your response with a `<thinking>` block where you briefly outline your reasoning process — which files are relevant, what connections you see, and your approach. Then close it with `</thinking>` before writing your actual answer.
+
+Example format:
+<thinking>
+The user is asking about authentication. I see auth-related code in `backend/auth.py` and `middleware/jwt.py`. The flow goes: login endpoint → JWT generation → middleware verification. Let me trace this...
+</thinking>
+
+[Your actual detailed answer here]
+
+Cite files. Connect the dots. Be the engineer this developer wishes they had on their team."""
 
 
 class RAGService:

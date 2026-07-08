@@ -9,6 +9,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { getAIHeaders } from '@/components/settings/APIKeyModal';
 import { MermaidBlock } from '@/components/chat/MermaidBlock';
+import { ReasoningBlock, parseThinkingBlock } from '@/components/chat/ReasoningBlock';
 
 interface ChatSource {
   file_path: string;
@@ -342,7 +343,11 @@ export function ChatInterface({ repoId, repoName, compact }: { repoId: string; r
                           </div>
                           <span className="text-xs">Analyzing codebase...</span>
                         </div>
-                      ) : (
+                      ) : (() => {
+                        const { thinking, answer } = parseThinkingBlock(msg.content || '');
+                        return (
+                          <>
+                            {thinking && <ReasoningBlock thinking={thinking} />}
                         <ReactMarkdown
                           components={{
                             code(props) {
@@ -386,9 +391,11 @@ export function ChatInterface({ repoId, repoName, compact }: { repoId: string; r
                             blockquote: ({children}) => <blockquote className="border-l-2 border-blue-300 pl-3 my-2 text-zinc-600 italic">{children}</blockquote>,
                           }}
                         >
-                          {msg.content || ''}
+                          {answer || ''}
                         </ReactMarkdown>
-                      )}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
