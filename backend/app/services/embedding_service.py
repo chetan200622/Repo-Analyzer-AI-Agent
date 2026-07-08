@@ -1,6 +1,5 @@
 import logging
 from typing import List
-from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +19,7 @@ class EmbeddingService:
         if self.model is None:
             logger.info(f"Loading embedding model {MODEL_NAME}...")
             # This downloads the model on the first run if not cached.
+            from sentence_transformers import SentenceTransformer
             self.model = SentenceTransformer(MODEL_NAME)
             logger.info(f"Embedding model loaded successfully.")
 

@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from app.core.config import settings
 
 def run_worker():
-    redis_conn = Redis.from_url(settings.REDIS_URL)
+    redis_conn = Redis.from_url(settings.REDIS_URL, health_check_interval=30)
     worker = SimpleWorker(['analysis', 'default'], connection=redis_conn)
     print("Starting Repo Analyzer RQ worker...")
     worker.work()

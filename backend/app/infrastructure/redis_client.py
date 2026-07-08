@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 redis_client = redis.Redis.from_url(
     settings.REDIS_URL,
     decode_responses=True,
+    health_check_interval=30,
 )
 
 # RQ job queue for background analysis tasks
-analysis_queue = Queue("analysis", connection=redis.Redis.from_url(settings.REDIS_URL))
+analysis_queue = Queue("analysis", connection=redis.Redis.from_url(settings.REDIS_URL, health_check_interval=30))
 
 
 def get_redis() -> redis.Redis:
