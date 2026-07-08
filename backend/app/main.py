@@ -27,6 +27,18 @@ async def lifespan(app: FastAPI):
     logger.info("Environment: %s", settings.APP_ENV)
     logger.info("Database: %s:%s/%s", settings.POSTGRES_HOST, settings.POSTGRES_PORT, settings.POSTGRES_DB)
     logger.info("Redis: %s", settings.REDIS_URL)
+
+    # Auto-run database migrations on startup
+    try:
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+        alembic_cfg.set_main_option("script_location", os.path.join(os.path.dirname(__file__), "..", "alembic"))
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Database migrations applied successfully")
+    except Exception as e:
+        logger.error("Failed to run database migrations: %s", e)
+
     yield
     logger.info("Shutting down %s", settings.APP_NAME)
 
