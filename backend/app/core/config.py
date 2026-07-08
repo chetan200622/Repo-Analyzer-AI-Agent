@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     BACKEND_URL: str = "http://localhost:8001"
 
     # PostgreSQL
+    DATABASE_URL: str | None = None
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_DB: str = "repomind"
@@ -35,6 +36,7 @@ class Settings(BaseSettings):
 
     # Qdrant (used in Feature 3+)
     QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_API_KEY: str | None = None
 
     # Ollama (used in Feature 4+)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
@@ -54,6 +56,12 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """Construct PostgreSQL connection URL."""
+        if self.DATABASE_URL:
+            url = self.DATABASE_URL
+            if url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql+psycopg://", 1)
+            return url
+            
         return (
             f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
