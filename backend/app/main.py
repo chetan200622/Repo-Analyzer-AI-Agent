@@ -39,6 +39,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("Failed to run database migrations: %s", e)
 
+    # Start RQ worker in a background thread (avoids needing a paid Background Worker on Render)
+    import threading
+    from redis import Redis
+    from rq import SimpleWorker
+
+    def _run_worker():
+        try:
+            redis_conn = Redis.from_url(settings.REDIS_URL, health_check_interval=30)
+            worker = SimpleWorker(['analysis', 'default'], connection=redis_conn)
+            logger.info("Background RQ worker started in-process")
+            worker.work()
+        except Exception as e:
+            logger.error("RQ worker crashed: %s", e)
+
+    worker_thread = threading.Thread(target=_run_worker, daemon=True)
+    worker_thread.start()
+
     yield
     logger.info("Shutting down %s", settings.APP_NAME)
 
