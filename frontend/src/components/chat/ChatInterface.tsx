@@ -2,12 +2,13 @@
 
 // Enhanced chat interface with thinking indicator, intent badges, and follow-up suggestions
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, User, Code2, Loader2, Sparkles, Brain, FileCode, ChevronRight, AlertCircle } from 'lucide-react';
+import { Send, Bot, User, Code2, Loader2, Sparkles, Brain, FileCode, ChevronRight, AlertCircle, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { getAIHeaders } from '@/components/settings/APIKeyModal';
+import { MermaidBlock } from '@/components/chat/MermaidBlock';
 
 interface ChatSource {
   file_path: string;
@@ -197,6 +198,40 @@ export function ChatInterface({ repoId, repoName, compact }: { repoId: string; r
     }
   };
 
+  const handleExportChat = useCallback(() => {
+    if (messages.length === 0) return;
+    const lines = [
+      `# Chat Export — ${repoName || 'Repository'}`,
+      `> Exported on ${new Date().toLocaleString()}`,
+      '',
+    ];
+    for (const msg of messages) {
+      lines.push(`## ${msg.role === 'user' ? '👤 You' : '🤖 AI'}`);
+      lines.push('');
+      lines.push(msg.content);
+      if (msg.sources && msg.sources.length > 0) {
+        lines.push('');
+        lines.push('**Referenced files:**');
+        for (const src of msg.sources) {
+          lines.push(`- \`${src.file_path}\` (lines ${src.start_line}-${src.end_line})`);
+        }
+      }
+      lines.push('');
+      lines.push('---');
+      lines.push('');
+    }
+    const content = lines.join('\n');
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(repoName || 'repo').replace(/[^a-z0-9]/gi, '-')}-chat-export.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [messages, repoName]);
+
   return (
     <div className={`${compact ? 'h-full' : 'h-[750px] border border-gray-200 rounded-xl shadow-sm'} bg-white overflow-hidden flex flex-col`}>
       {/* Header */}
@@ -210,20 +245,31 @@ export function ChatInterface({ repoId, repoName, compact }: { repoId: string; r
             {!compact && <p className="text-[10px] text-zinc-400">{repoName ? `Analyzing ${repoName}` : 'Ask anything about the codebase'}</p>}
           </div>
         </div>
-        {isThinking && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }} 
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center text-xs text-indigo-600 font-medium bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100"
-          >
-            <Brain className="w-3.5 h-3.5 mr-1.5 animate-pulse" /> Reasoning...
-          </motion.div>
-        )}
-        {isGenerating && !isThinking && (
-          <div className="flex items-center text-xs text-blue-600 font-medium bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
-            <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> Writing...
-          </div>
-        )}
+        <div className="flex items-center gap-1.5">
+          {isThinking && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }} 
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center text-xs text-indigo-600 font-medium bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100"
+            >
+              <Brain className="w-3.5 h-3.5 mr-1.5 animate-pulse" /> Reasoning...
+            </motion.div>
+          )}
+          {isGenerating && !isThinking && (
+            <div className="flex items-center text-xs text-blue-600 font-medium bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+              <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> Writing...
+            </div>
+          )}
+          {messages.length > 0 && !compact && (
+            <button
+              onClick={handleExportChat}
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-zinc-400 hover:text-zinc-600"
+              title="Export chat as Markdown"
+            >
+              <Download size={15} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -302,6 +348,9 @@ export function ChatInterface({ repoId, repoName, compact }: { repoId: string; r
                             code(props) {
                               const {children, className, node, ref, ...rest} = props as any;
                               const match = /language-(\w+)/.exec(className || '')
+                              if (match && match[1] === 'mermaid') {
+                                return <MermaidBlock code={String(children).replace(/\n$/, '')} />;
+                              }
                               return match ? (
                                 <SyntaxHighlighter
                                   {...rest}

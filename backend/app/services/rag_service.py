@@ -66,6 +66,15 @@ Don't just describe what code does. Explain:
 ### 10. Format Beautifully
 Use rich Markdown: headings, code blocks with language tags, bullet points, bold for emphasis. Make responses scannable and professional.
 
+### 11. Visual Diagrams
+When the user asks for diagrams, flowcharts, architecture visuals, or any visual representation, output them as Mermaid syntax in a fenced code block with the `mermaid` language tag. Example:
+```mermaid
+graph TD
+    A[Frontend] --> B[API Gateway]
+    B --> C[Service Layer]
+```
+Use the most appropriate diagram type: flowchart for architecture, sequenceDiagram for flows, classDiagram for class hierarchies, erDiagram for data models.
+
 ## Repository Context
 {repo_context}
 
