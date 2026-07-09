@@ -317,7 +317,7 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
             # --- Generate AI Architecture Summary ---
             _update_job(session, job_id, "Generating AI Architecture Summary...", 98)
             try:
-                from app.services.rag_service import rag_service
+                from app.services.gemini_client import gemini_client
                 prompt = f"""
 You are an expert software architect. Analyze the following repository metadata and generate a high-level summary and a clean architecture diagram.
 
@@ -338,8 +338,7 @@ Based on the README, dependencies and languages, output exactly two sections:
 ## Architecture Diagram
 (Provide a Mermaid.js `graph TD` diagram showing the likely high level architecture. Keep it clean and avoid excessive criss-crossing edges. Do NOT wrap it in markdown code blocks, just output the raw mermaid code starting with `graph TD`).
 """
-                response_obj = rag_service.llm.invoke(prompt)
-                ai_response = getattr(response_obj, "content", str(response_obj))
+                ai_response = gemini_client.invoke(prompt)
                 
                 if "## Architecture Diagram" in ai_response:
                     parts = ai_response.split("## Architecture Diagram")
@@ -356,7 +355,7 @@ Based on the README, dependencies and languages, output exactly two sections:
                     repo.summary = ai_response
                     
             except Exception as ai_err:
-                logger.error(f"Failed to generate AI summary: {ai_err}")
+                logger.error("Failed to generate AI summary: %s", ai_err)
 
             repo.status = "READY"
         
