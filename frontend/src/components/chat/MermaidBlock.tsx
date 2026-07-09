@@ -4,6 +4,27 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Code2, Eye } from 'lucide-react';
 
+/**
+ * Sanitize Mermaid code to fix common syntax issues from LLMs.
+ * - Wraps labels containing parentheses in quotes: A[Foo (Bar)] -> A["Foo (Bar)"]
+ * - Strips markdown code fences
+ */
+function sanitizeMermaidCode(raw: string): string {
+  let code = raw.trim();
+
+  // Strip markdown fences if present
+  if (code.startsWith('```mermaid')) {
+    code = code.replace(/^```mermaid\s*/, '').replace(/```\s*$/, '');
+  } else if (code.startsWith('```')) {
+    code = code.replace(/^```\s*/, '').replace(/```\s*$/, '');
+  }
+
+  // Fix unquoted labels with parentheses: A[Foo (Bar)] -> A["Foo (Bar)"]
+  code = code.replace(/\[([^\]"]*\([^)]*\)[^\]"]*)\]/g, '["$1"]');
+
+  return code.trim();
+}
+
 export function MermaidBlock({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>('');
@@ -22,9 +43,11 @@ export function MermaidBlock({ code }: { code: string }) {
           theme: 'default',
           securityLevel: 'loose',
           fontFamily: 'Inter, sans-serif',
+          suppressErrorRendering: true,
         });
 
-        const { svg: renderedSvg } = await mermaid.render(idRef.current, code.trim());
+        const sanitized = sanitizeMermaidCode(code);
+        const { svg: renderedSvg } = await mermaid.render(idRef.current, sanitized);
         if (!cancelled) {
           setSvg(renderedSvg);
           setError(null);
@@ -34,12 +57,26 @@ export function MermaidBlock({ code }: { code: string }) {
           setError(err.message || 'Failed to render diagram');
           setSvg('');
         }
+        // Clean up any error elements mermaid injected into the DOM
+        const errorElements = document.querySelectorAll('[id^="d"]');
+        errorElements.forEach((el) => {
+          if (el.textContent?.includes('Syntax error') || el.textContent?.includes('mermaid version')) {
+            el.remove();
+          }
+        });
       }
     }
 
     render();
     return () => { cancelled = true; };
   }, [code]);
+
+  // Clean up any stale mermaid error nodes on mount/unmount
+  useEffect(() => {
+    return () => {
+      document.querySelectorAll('.mermaid-error, [data-mermaid-error]').forEach((el) => el.remove());
+    };
+  }, []);
 
   if (error) {
     return (

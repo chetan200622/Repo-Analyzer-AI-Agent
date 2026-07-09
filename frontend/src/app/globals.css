@@ -159,3 +159,11 @@
 .markdown-prose strong {
   @apply font-semibold text-zinc-900;
 }
+
+/* Hide leaked Mermaid error elements that appear outside containers */
+#d-mermaid,
+[id^="dmermaid"],
+body > svg[id^="d"],
+body > [aria-roledescription="error"] {
+  display: none !important;
+}

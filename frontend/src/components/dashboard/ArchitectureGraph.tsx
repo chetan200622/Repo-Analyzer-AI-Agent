@@ -74,17 +74,18 @@ export function ArchitectureGraph({ mermaidSyntax }: ArchitectureGraphProps) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('graph') || trimmed.startsWith('%%')) return;
 
-        const edgeRegex = /([A-Za-z0-9_-]+)(?:\[(.*?)\])?\s*-->\s*([A-Za-z0-9_-]+)(?:\[(.*?)\])?/;
+        // Match edges: A["Label"] --> B["Label"] or A[Label] --> B[Label]
+        const edgeRegex = /([A-Za-z0-9_-]+)(?:\[(?:"(.*?)"|'(.*?)'|(.*?))\])?\s*-->\s*(?:\|.*?\|\s*)?([A-Za-z0-9_-]+)(?:\[(?:"(.*?)"|'(.*?)'|(.*?))\])?/;
         const match = trimmed.match(edgeRegex);
 
         if (match) {
           const sourceId = match[1];
-          const sourceLabel = match[2] || sourceId;
-          const targetId = match[3];
-          const targetLabel = match[4] || targetId;
+          const sourceLabel = match[2] || match[3] || match[4] || sourceId;
+          const targetId = match[5];
+          const targetLabel = match[6] || match[7] || match[8] || targetId;
 
-          if (!nodeMap.has(sourceId)) nodeMap.set(sourceId, sourceLabel.replace(/["']/g, ''));
-          if (!nodeMap.has(targetId)) nodeMap.set(targetId, targetLabel.replace(/["']/g, ''));
+          if (!nodeMap.has(sourceId)) nodeMap.set(sourceId, sourceLabel.replace(/['"]/g, ''));
+          if (!nodeMap.has(targetId)) nodeMap.set(targetId, targetLabel.replace(/['"]/g, ''));
 
           newEdges.push({
             id: `e-${sourceId}-${targetId}`,

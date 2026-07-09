@@ -318,25 +318,56 @@ def clone_and_scan_repo(job_id: str, repo_id: str, github_url: str):
             _update_job(session, job_id, "Generating AI Architecture Summary...", 98)
             try:
                 from app.services.gemini_client import gemini_client
-                prompt = f"""
-You are an expert software architect. Analyze the following repository metadata and generate a high-level summary and a clean architecture diagram.
 
-Repository Name: {repo.name}
+                # Build a compact file tree for context (top-level dirs + key files)
+                file_paths = [f.path for f in session.query(File).filter(File.repo_id == repo_id).all()]
+                top_dirs = sorted(set(p.split("/")[0] for p in file_paths if "/" in p))[:20]
+                key_files = [p for p in file_paths if any(
+                    p.endswith(ext) for ext in [
+                        "package.json", "requirements.txt", "Dockerfile",
+                        "docker-compose.yml", "main.py", "app.py", "index.ts",
+                        "index.js", "server.ts", "server.js",
+                    ]
+                )][:15]
+
+                prompt = f"""You are a principal software architect. Analyze this repository and produce a precise, informative summary and architecture diagram.
+
+Repository: {repo.name}
 Primary Language: {repo.primary_language}
-Language Stats: {json.dumps(language_stats, indent=2)}
+Languages: {json.dumps(language_stats)}
 Total Files: {files_scanned}
+Top-level directories: {', '.join(top_dirs)}
+Key files: {', '.join(key_files)}
 Dependencies: {json.dumps(dependencies_gathered, indent=2)}
 
-README Snippet:
+README:
 {readme_content}
 
-Based on the README, dependencies and languages, output exactly two sections:
+Output EXACTLY these two sections:
 
 ## Architecture Summary
-(Write 2 paragraphs explaining what kind of application this is. If it is a collection of apps or templates, say so explicitly. Do not invent a monolithic web architecture if it is just a monorepo of scripts.)
+Write 2–3 paragraphs:
+- Paragraph 1: What this project IS (web app? CLI? mobile app? monorepo?), what problem it solves, and who it's for.
+- Paragraph 2: The tech stack — frontend framework, backend framework, database, APIs, deployment.
+- Paragraph 3: How the main components connect (data flow, API boundaries, external services).
+Be specific. Use actual library/framework names from the dependencies. Do NOT guess features not supported by the code.
 
 ## Architecture Diagram
-(Provide a Mermaid.js `graph TD` diagram showing the likely high level architecture. Keep it clean and avoid excessive criss-crossing edges. Do NOT wrap it in markdown code blocks, just output the raw mermaid code starting with `graph TD`).
+Output a Mermaid.js graph TD diagram. Rules:
+- Use descriptive node IDs: Frontend, Backend, Database, Auth, etc. (NOT single letters like A, B, C)
+- ALWAYS quote labels containing parentheses: id["Label (detail)"]
+- Show real components from the repo, not generic placeholders
+- Include external services (APIs, databases, cloud services) if mentioned in dependencies
+- Keep it clean: 5–12 nodes maximum, no excessive edges
+- Do NOT wrap in markdown code blocks. Start directly with `graph TD`
+
+Example of correct syntax:
+graph TD
+    User["User Browser"] --> Frontend["React Frontend"]
+    Frontend --> API["FastAPI Backend"]
+    API --> DB["PostgreSQL Database"]
+    API --> Auth["JWT Authentication"]
+    API --> AI["Gemini AI Service"]
 """
                 ai_response = gemini_client.invoke(prompt)
                 
@@ -348,6 +379,14 @@ Based on the README, dependencies and languages, output exactly two sections:
                         diagram_raw = diagram_raw.replace("```mermaid", "").replace("```", "").strip()
                     elif diagram_raw.startswith("```"):
                         diagram_raw = diagram_raw.replace("```", "").strip()
+
+                    # Sanitize: quote any labels with parentheses
+                    import re
+                    diagram_raw = re.sub(
+                        r'\[([^\]"]*\([^)]*\)[^\]"]*)\]',
+                        r'["\1"]',
+                        diagram_raw,
+                    )
                     
                     repo.summary = summary_raw
                     repo.architecture_diagram = diagram_raw
