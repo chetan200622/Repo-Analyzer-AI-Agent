@@ -43,7 +43,10 @@ class Settings(BaseSettings):
 
     # AI Models (used in Feature 3+)
     LLM_MODEL: str = "qwen2.5-coder:7b"
+    LLM_PROVIDER: str = "auto"  # "gemini", "ollama", or "auto" (gemini with ollama fallback)
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_API_KEY: str = ""
 
     # JWT (used when auth is implemented)
     JWT_SECRET: str = "change_this_secret"
